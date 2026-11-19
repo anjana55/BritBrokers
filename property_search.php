@@ -1,6 +1,8 @@
+<?php require_once __DIR__ . "/functions.php"; require_admin_ajax(); // admin only ?>
 <?php
 	if(isset($_REQUEST['ru']) && $_REQUEST['ru']!=""){
-		$return_url = $_REQUEST['ru'];
+		// Only the admin screens that use this search may be returned to
+		$return_url = in_array($_REQUEST['ru'], array("delete_property.php", "edit_property_list.php"), true) ? $_REQUEST['ru'] : "";
 	} else {
 		$return_url = "";
 	}
@@ -16,7 +18,7 @@
 
 <script>
 $(document).ready(function() {
-	var return_url = "<?php echo $return_url; ?>";
+	var return_url = <?php echo json_encode($return_url); ?>;
 	$("#btn_cancel_conf").click(function(){
 		location.reload();
 	});

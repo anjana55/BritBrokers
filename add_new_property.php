@@ -1,3 +1,4 @@
+<?php require_once __DIR__ . "/functions.php"; require_admin_ajax(); // admin only ?>
 <?php
 	include_once("functions.php");
 	$link = setConnection();

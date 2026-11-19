@@ -1,0 +1,20 @@
+# Secrets
+.env
+britbrokers.env
+
+# User-uploaded property photos (kept on the server, not in git)
+uploads/*
+!uploads/.htaccess
+!uploads/thumbs/
+uploads/thumbs/*
+!uploads/thumbs/.gitkeep
+
+# Database dumps contain personal data (blog users, newsletter subscribers)
+*.sql
+*.sql.gz
+
+# Logs and OS files
+error_log
+*.log
+.DS_Store
+Thumbs.db

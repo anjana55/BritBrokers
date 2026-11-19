@@ -1,0 +1,24 @@
+# BritBrokers web-root rules (Apache / LiteSpeed)
+
+Options -Indexes
+
+# Never serve config, dumps, docs, scripts for the command line, or dotfiles
+<FilesMatch "(^\.|\.(sql|gz|ini|env|md|log|map|old|bak)$|^(error_log|composer\.(json|lock))$)">
+	Require all denied
+</FilesMatch>
+
+# Library files and includes are not pages; block direct requests to them
+<FilesMatch "^(config|auth|functions|set_post_vars|image_processing|captcha\.class|GIFEncoder\.class)\.php$">
+	Require all denied
+</FilesMatch>
+
+<IfModule mod_headers.c>
+	Header always set X-Content-Type-Options "nosniff"
+	Header always set X-Frame-Options "SAMEORIGIN"
+	Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# Once HTTPS works on the domain, uncomment to force it:
+# RewriteEngine On
+# RewriteCond %{HTTPS} !=on
+# RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]

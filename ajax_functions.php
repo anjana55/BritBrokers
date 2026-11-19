@@ -1,16 +1,29 @@
 <?php
-session_start();
-if(isset($_SESSION['user']) && $_SESSION['user']=="British Brokers"){
-	$admin = true;
-} else {
-	$admin = false;
+include_once __DIR__ . "/functions.php";
+start_secure_session();
+$admin = is_admin();
+
+$tsk = isset($_REQUEST['tsk']) && is_string($_REQUEST['tsk']) ? $_REQUEST['tsk'] : "";
+
+// Tasks that change data: admin only, and POST only (a link or image tag can no longer trigger them).
+$write_tasks = array("adpr", "adft", "prdl", "imdl", "imft", "dlai", "edpr");
+if(in_array($tsk, $write_tasks, true)){
+	if(!$admin){
+		http_response_code(403);
+		echo "error|Not authorized!";
+		exit();
+	}
+	if($_SERVER['REQUEST_METHOD'] !== 'POST'){
+		http_response_code(405);
+		echo "error|Invalid request method!";
+		exit();
+	}
 }
-	
-include_once("functions.php");
+
 $link = setConnection();
 	
-if(isset($_REQUEST['tsk']) && $_REQUEST['tsk']!==""){
-	switch($_REQUEST['tsk']){
+if($tsk!==""){
+	switch($tsk){
 		case "dbfc": //Fill cities from DB
 			if(isset($_REQUEST['value']) && $_REQUEST['value']!==""){
 				$district = $_REQUEST['value'];
@@ -41,7 +54,7 @@ if(isset($_REQUEST['tsk']) && $_REQUEST['tsk']!==""){
 			break;
 		case "adpr": //Add property
 			if($admin){
-				$ret = addNewProperty($link, $_REQUEST['business_type'],$_REQUEST['property_type'], $_REQUEST['bedrooms'], $_REQUEST['bathrooms'], $_REQUEST['dct'], $_REQUEST['city'], $_REQUEST['street'], $_REQUEST['keywords'], $_REQUEST['description'], $_REQUEST['price'],$_REQUEST['currency'], $_REQUEST['term'], $_REQUEST['featured'],$_REQUEST['status']  );
+				$ret = addNewProperty($link, ($_REQUEST['business_type'] ?? ""),($_REQUEST['property_type'] ?? ""), ($_REQUEST['bedrooms'] ?? ""), ($_REQUEST['bathrooms'] ?? ""), ($_REQUEST['dct'] ?? ""), ($_REQUEST['city'] ?? ""), ($_REQUEST['street'] ?? ""), ($_REQUEST['keywords'] ?? ""), ($_REQUEST['description'] ?? ""), ($_REQUEST['price'] ?? ""),($_REQUEST['currency'] ?? ""), ($_REQUEST['term'] ?? ""), ($_REQUEST['featured'] ?? ""),($_REQUEST['status'] ?? "")  );
 			} else {
 				$ret = "error|Not authorized!";
 			}
@@ -57,7 +70,7 @@ if(isset($_REQUEST['tsk']) && $_REQUEST['tsk']!==""){
 						$ret="";
 						$err=false;
 						
-						foreach($_REQUEST['features'] as $value)
+						foreach(to_int_list($_REQUEST['features']) as $value)
 						{
 							$ret = addNewFeature($link, $_REQUEST['prop_id'], $value );
 							//var_dump($ret);
@@ -176,7 +189,7 @@ if(isset($_REQUEST['tsk']) && $_REQUEST['tsk']!==""){
 		case "prdl":	//Delete property
 			if($admin){
 				if(isset($_REQUEST['pid']) && $_REQUEST['pid']!=""){
-					$pids = $_REQUEST['pid'];
+					$pids = to_int_list($_REQUEST['pid']);
 					
 					$del_error = false;
 					
@@ -201,7 +214,7 @@ if(isset($_REQUEST['tsk']) && $_REQUEST['tsk']!==""){
 			break;
 		case "imdl":	//Delete images
 			if($admin){
-				$ret = deleteImages($link, $_REQUEST['pid'], $_REQUEST['img_id']);
+				$ret = deleteImages($link, $_REQUEST['pid'] ?? "", $_REQUEST['img_id'] ?? "");
 				$st=explode("|",$ret);
 
 				if($st[0]=="success"){
@@ -216,8 +229,8 @@ if(isset($_REQUEST['tsk']) && $_REQUEST['tsk']!==""){
 		case "imft": //Change featured image
 			if($admin){
 				$img_id =0;
-				$img_id = $_REQUEST['img_id'];
-				$ret = setFeaturedImage($link, $_REQUEST['pid'], $img_id);
+				$img_id = $_REQUEST['img_id'] ?? 0;
+				$ret = setFeaturedImage($link, $_REQUEST['pid'] ?? "", $img_id);
 				$st=explode("|",$ret);
 				
 				if($st[0]=="success"){
@@ -231,7 +244,7 @@ if(isset($_REQUEST['tsk']) && $_REQUEST['tsk']!==""){
 			break;
 		case "dlai":	//Delete all images
 			if($admin){
-				$ret = deleteAllImages($link, $_REQUEST['pid']);
+				$ret = deleteAllImages($link, $_REQUEST['pid'] ?? "");
 				$st=explode("|",$ret);
 
 				if($st[0]=="success"){
@@ -249,11 +262,11 @@ if(isset($_REQUEST['tsk']) && $_REQUEST['tsk']!==""){
 			if($admin){
 				//$result = updateProperty($link, $pid, $bt='',$pt='', $bdrm='', $btrm='', $district='', $city='', $street='', $keywords='', $description='', $price='', $features='' );
 
-				$result = updateProperty($link, $_REQUEST['pid'], $_REQUEST['business_type'],$_REQUEST['property_type'], $_REQUEST['bedrooms'], $_REQUEST['bathrooms'], $_REQUEST['dct'], $_REQUEST['city'], $_REQUEST['street'], $_REQUEST['keywords'], $_REQUEST['description'], $_REQUEST['price'], $_REQUEST['currency'], $_REQUEST['term'], $_REQUEST['featured'],$_REQUEST['features'],$_REQUEST['status'] );
+				$result = updateProperty($link, ($_REQUEST['pid'] ?? ""), ($_REQUEST['business_type'] ?? ""),($_REQUEST['property_type'] ?? ""), ($_REQUEST['bedrooms'] ?? ""), ($_REQUEST['bathrooms'] ?? ""), ($_REQUEST['dct'] ?? ""), ($_REQUEST['city'] ?? ""), ($_REQUEST['street'] ?? ""), ($_REQUEST['keywords'] ?? ""), ($_REQUEST['description'] ?? ""), ($_REQUEST['price'] ?? ""), ($_REQUEST['currency'] ?? ""), ($_REQUEST['term'] ?? ""), ($_REQUEST['featured'] ?? ""),($_REQUEST['features'] ?? ""),($_REQUEST['status'] ?? "") );
 				
 				//Update YouTube tag
 				if (isset($_REQUEST['youtubetag']) && $_REQUEST['youtubetag']!=""){
-					$ret = updateImage($link, $_REQUEST['pid'], $_REQUEST['youtubeid'], $_REQUEST['youtubetag'],"PROVD" );
+					$ret = updateImage($link, ($_REQUEST['pid'] ?? ""), ($_REQUEST['youtubeid'] ?? ""), ($_REQUEST['youtubetag'] ?? ""),"PROVD" );
 					$st=explode("|",$ret);
 					if($st[0]=="error"){
 						$err=true;
@@ -271,19 +284,8 @@ if(isset($_REQUEST['tsk']) && $_REQUEST['tsk']!==""){
 			}
 			break;
 		case "capt":
-			if ( isset ( $_POST [ 'uid' ] ) && strlen ( $_POST [ 'uid' ] ) > 0 ) {
-				$cid = md5_decrypt ( $_POST [ 'cid' ] );
-				if ( $cid == $_POST [ 'uid' ] ) {
-					$result = "success";
-				}
-				else {
-					$result = "error";
-				}
-			} else {
-				$result = "error";
-			}
-			
-			echo $result;
+			// Pre-check only, so the form can show an error. mailman.php checks again and uses the answer up.
+			echo captcha_check($_POST['uid'] ?? "", false) ? "success" : "error";
 			break;
 		case "exch":  //Get exchange rate
 			$cur = "USD";
@@ -291,16 +293,16 @@ if(isset($_REQUEST['tsk']) && $_REQUEST['tsk']!==""){
 			$amt = "1";
 			$conv_amt=0;
 			
-			if ( isset ( $_POST [ 'cur' ] )){
-				$cur = $_POST['cur'];
-				if($cur="LKR"){
+			if ( isset ( $_POST [ 'cur' ] ) && in_array ( strtoupper ( (string) $_POST [ 'cur' ] ), array ( "USD", "LKR", "GBP" ), true ) ){
+				$cur = strtoupper ( $_POST['cur'] );
+				if($cur=="LKR"){
 					$to_cur="USD";
 				} else {
 					$to_cur="LKR";
 				}
 			}
 			
-			if ( isset ( $_POST [ 'amt' ] )){
+			if ( isset ( $_POST [ 'amt' ] ) && is_numeric ( $_POST [ 'amt' ] ) ){
 				$amt = $_POST['amt'];
 			}
 

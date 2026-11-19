@@ -1,115 +1,104 @@
 <?php
-if(isset($_REQUEST['src_type']) && $_REQUEST['src_type']!=""){
-	$pt=$_REQUEST['src_type'];
-	$t_type = getPropertyTypeByID($link,$pt);
-} else {
-	$pt="";
-	$t_type="";
+/*
+ * Reads the property-search parameters from the request.
+ * Every value is validated here (IDs must be whole numbers, sort options come from a fixed list),
+ * so later code never sees raw user input.
+ */
+if(!isset($link) || !($link instanceof mysqli)){
+	$link = setConnection();
 }
 
-if(isset($_REQUEST['src_for']) && $_REQUEST['src_for']!=""){
-	$bt=$_REQUEST['src_for'];
-	$t_for = getBusinessTypeByID($link,$bt);
-} else {
-	$bt="R";
+if(!function_exists("req_str")){
+/** Request value as a trimmed string ("" if missing or not a plain value). */
+function req_str($key){
+	$v = $_REQUEST[$key] ?? "";
+	return is_array($v) ? "" : trim((string)$v);
+}
+}
+
+if(!function_exists("req_id")){
+/** Request value as a whole-number string, or "" if it is not one. */
+function req_id($key){
+	$v = req_str($key);
+	return preg_match('/^\d{1,10}$/', $v) ? $v : "";
+}
+}
+
+if(!function_exists("req_num")){
+/** Request value as a number string (prices), or "" if it is not numeric. */
+function req_num($key){
+	$v = str_replace(",", "", req_str($key));
+	return (is_numeric($v) && $v >= 0) ? $v : "";
+}
+}
+
+// Property type codes look like "COMOF", "LANDE"
+$pt = strtoupper(req_str('src_type'));
+if(!preg_match('/^[A-Z0-9]{1,10}$/', $pt)){
+	$pt = "";
+}
+$t_type = ($pt !== "") ? getPropertyTypeByID($link, $pt) : "";
+
+// Business type: S (sale) or R (rent); defaults to rent as before
+$bt = strtoupper(req_str('src_for'));
+if(!preg_match('/^[A-Z]{1,3}$/', $bt)){
+	$bt = "R";
 	$t_for = "";
-}
-
-if(isset($_REQUEST['src_bedrooms']) && $_REQUEST['src_bedrooms']!=""){
-	$bdr=$_REQUEST['src_bedrooms'];
-	if($bdr=="5+"){
-		$min_bdrm=5;
-		$max_bdrm="";
-	} else {
-		$min_bdrm=$bdr;
-		$max_bdrm=$bdr;		
-	}
 } else {
-	$min_bdrm="";
-	$max_bdrm="";
+	$t_for = getBusinessTypeByID($link, $bt);
 }
 
-if(isset($_REQUEST['src_bathrooms']) && $_REQUEST['src_bathrooms']!=""){
-	$btr=$_REQUEST['src_bathrooms'];
-	if($btr=="5+"){
-		$min_btrm=5;
-		$max_btrm="";
-	} else {
-		$min_btrm=$btr;
-		$max_btrm=$btr;		
-	}
+$bdr = req_str('src_bedrooms');
+if($bdr === "5+"){
+	$min_bdrm = 5;
+	$max_bdrm = "";
+} elseif(preg_match('/^\d{1,2}$/', $bdr)){
+	$min_bdrm = $bdr;
+	$max_bdrm = $bdr;
 } else {
-	$min_btrm="";
-	$max_btrm="";
+	$bdr = "";
+	$min_bdrm = "";
+	$max_bdrm = "";
 }
 
-if(isset($_REQUEST['src_district']) && $_REQUEST['src_district']!=""){
-	$district=$_REQUEST['src_district'];
-	$t_district = getDistrictByID($link,$district);
+$btr = req_str('src_bathrooms');
+if($btr === "5+"){
+	$min_btrm = 5;
+	$max_btrm = "";
+} elseif(preg_match('/^\d{1,2}$/', $btr)){
+	$min_btrm = $btr;
+	$max_btrm = $btr;
 } else {
-	$district="";
-	$t_district="";
+	$btr = "";
+	$min_btrm = "";
+	$max_btrm = "";
 }
 
-if(isset($_REQUEST['src_city']) && $_REQUEST['src_city']!=""){
-	$city=$_REQUEST['src_city'];
-	$t_city = getCityByID($link,$city);
-} else {
-	$city="";
-	$t_city="";
+$district = req_id('src_district');
+$t_district = ($district !== "") ? getDistrictByID($link, $district) : "";
+
+$city = req_id('src_city');
+$t_city = ($city !== "") ? getCityByID($link, $city) : "";
+
+$current_page = max(1, to_int(req_str('pg'), 1));
+
+// Features: ft[]=1&ft[]=4 (the old serialized "ft" value was unsafe and is no longer accepted)
+$features = isset($_REQUEST['ft']) && is_array($_REQUEST['ft']) ? to_int_list($_REQUEST['ft']) : array();
+
+$fur = req_id('src_furnished');
+if($fur !== ""){
+	$features[] = (int)$fur;
 }
 
-if(isset($_REQUEST['pg']) && $_REQUEST['pg']!=""){
-	$current_page=$_REQUEST['pg'];
-} else {
-	$current_page=1;
+$min_price = req_num('mnp');
+$max_price = req_num('mxp');
+
+$featured = req_str('featured');
+if(!preg_match('/^[A-Za-z]?$/', $featured)){
+	$featured = "";
 }
 
-$features=array();
-if(isset($_REQUEST['ft']) && $_REQUEST['ft']!=""){
-	$features[] = unserialize($_REQUEST['ft']);
-}
+$keywords = htmlspecialchars(mb_substr(req_str('kwd'), 0, 100), ENT_QUOTES);
 
-if(isset($_REQUEST['src_furnished']) && $_REQUEST['src_furnished']!=""){
-	array_push($features,$_REQUEST['src_furnished']);
-	$fur=$_REQUEST['src_furnished'];
-} else {
-	$fur="";
-}
-
-if(isset($_REQUEST['mnp']) && $_REQUEST['mnp']!=""){
-	$min_price=$_REQUEST['mnp'];
-} else {
-	$min_price="";
-}
-
-if(isset($_REQUEST['mxp']) && $_REQUEST['mxp']!=""){
-	$max_price=$_REQUEST['mxp'];
-} else {
-	$max_price="";
-}
-
-if(isset($_REQUEST['featured']) && $_REQUEST['featured']!=""){
-	$featured=$_REQUEST['featured'];
-} else {
-	$featured="";
-}
-
-if(isset($_REQUEST['kwd']) && $_REQUEST['kwd']!=""){
-	$keywords=htmlspecialchars($_REQUEST['kwd'],ENT_IGNORE);
-} else {
-	$keywords="";
-}
-
-if(isset($_REQUEST['sby']) && $_REQUEST['sby']!=""){
-	$sort_by=$_REQUEST['sby'];
-} else {
-	$sort_by="featured";
-}
-
-if(isset($_REQUEST['sor']) && $_REQUEST['sor']!=""){
-	$sort_order=$_REQUEST['sor'];
-} else {
-	$sort_order="DESC";
-}
+list($sort_by, $sort_order) = safe_sort(req_str('sby'), req_str('sor') !== "" ? req_str('sor') : "DESC");
 ?>

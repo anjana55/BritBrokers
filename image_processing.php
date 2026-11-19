@@ -16,7 +16,10 @@ class SimpleImage {
 				$this->image = imagecreatefromgif($filename);
 		} elseif( $this->image_type == IMAGETYPE_PNG ) {
 				$this->image = imagecreatefrompng($filename);
+		} elseif( defined('IMAGETYPE_WEBP') && $this->image_type == IMAGETYPE_WEBP ) {
+				$this->image = imagecreatefromwebp($filename);
 		}
+		return $this->image ? true : false;
 	}
 
 	function save($filename, $image_type=IMAGETYPE_JPEG, $compression=75, $permissions=null) {
@@ -68,6 +71,8 @@ class SimpleImage {
 	}
 
 	function resize($width,$height) {
+		$width = max(1, (int)round($width));
+		$height = max(1, (int)round($height));
 		$new_image = imagecreatetruecolor($width, $height);
 		imagecopyresampled($new_image, $this->image, 0, 0, 0, 0, $width, $height, $this->getWidth(), $this->getHeight());
 		$this->image = $new_image;
@@ -90,17 +95,15 @@ function watermark($image,$stamp){
 	//imagecopy($im, $stamp, imagesx($im) - $sx - $marge_right, imagesy($im) - $sy - $marge_bottom, 0, 0, imagesx($stamp), imagesy($stamp));
 	
 	//Center image
-	imagecopy($im, $stamp, round((imagesx($im) - $sx)/2), round((imagesy($im) - $sy)/2), 0, 0, imagesx($stamp), imagesy($stamp));
+	imagecopy($im, $stamp, (int)round((imagesx($im) - $sx)/2), (int)round((imagesy($im) - $sy)/2), 0, 0, imagesx($stamp), imagesy($stamp));
 	//imagecopy($im, $stamp, round((imagesx($im) - $sx))-10, round((imagesy($im) - $sy))-10, 0, 0, imagesx($stamp), imagesy($stamp));	
 	//imagecopy($im, $stamp, 10, 10, 0, 0, imagesx($stamp), imagesy($stamp));
 	
-	imagedestroy($stamp);
     return $im; 
 	/*
 	// Output and free memory
 	header('Content-type: image/png');
 	imagepng($im);
-	imagedestroy($im);
 	*/
 }
 ?>

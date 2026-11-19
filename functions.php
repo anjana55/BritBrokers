@@ -4,16 +4,74 @@ Common functions written for BRITBROKERS.COM
 
 Copyright Anjana Chandrapala, 2014.
 ----------------------------------------------------------- */
-include_once "config.php";
+include_once __DIR__ . "/config.php";
+include_once __DIR__ . "/auth.php";
+
+// Keep the legacy "return false on error" behaviour of mysqli (PHP 8.1+ throws by default).
+// Errors are written to the PHP error log by runQuery() instead of being shown to visitors.
+mysqli_report(MYSQLI_REPORT_OFF);
 
 function setConnection(){
-	$username=db_user();
-	$password=db_password();
-	$database=db_name();
-	$dbhost = db_host();
-	
-	$link = mysqli_connect($dbhost,$username,$password,$database) or die("Unable to select database: " . mysqli_error($link)); 
+	$link = @mysqli_connect(db_host(), db_user(), db_password(), db_name());
+	if(!$link){
+		error_log("BritBrokers DB connection failed: " . mysqli_connect_error());
+		http_response_code(503);
+		die("The site is temporarily unavailable. Please try again shortly.");
+	}
 	return $link;
+}
+
+/**
+ * Escape a value for use inside a single-quoted SQL string literal.
+ * Interim protection until queries move to prepared statements (Phase 3).
+ */
+function q($link, $value){
+	if(is_array($value)){
+		$value = "";
+	}
+	return mysqli_real_escape_string($link, (string)$value);
+}
+
+/** Cast to a non-negative integer, or return $default when the value is not a whole number. */
+function to_int($value, $default = 0){
+	if(is_int($value)){
+		return max(0, $value);
+	}
+	if(is_string($value) && preg_match('/^\s*\d+\s*$/', $value)){
+		return (int)$value;
+	}
+	return $default;
+}
+
+/** Normalise a list of IDs (array or single value) to an array of integers. */
+function to_int_list($values){
+	if(!is_array($values)){
+		$values = ($values === null || $values === "") ? array() : array($values);
+	}
+	$out = array();
+	foreach($values as $v){
+		if(is_array($v)){
+			continue;
+		}
+		$i = to_int($v, null);
+		if($i !== null){
+			$out[] = $i;
+		}
+	}
+	return $out;
+}
+
+/** Columns the public search may sort by (anything else falls back to the default). */
+function safe_sort($sort_by, $sort_order, $default_col = "featured"){
+	$allowed = array("featured", "price", "aprice", "bedrooms", "bathrooms", "time_submitted", "property_id");
+	$col = in_array($sort_by, $allowed, true) ? $sort_by : $default_col;
+	$dir = (strtoupper(trim((string)$sort_order)) === "ASC") ? "ASC" : "DESC";
+	return array($col, $dir);
+}
+
+/** HTML-escape for output. */
+function e($value){
+	return htmlspecialchars((string)$value, ENT_QUOTES, "UTF-8");
 }
 
 function runQuery($link, $SQL, $return_results="NR"){
@@ -24,11 +82,12 @@ function runQuery($link, $SQL, $return_results="NR"){
 	// RA = Record array
 	// ST = Status
 	$result = mysqli_query($link, $SQL);
-	//echo "<!-- $SQL -->";
+	if($result === false){
+		error_log("BritBrokers SQL error: " . mysqli_error($link));
+	}
 	switch($return_results){
 		case "RC": //Record count
-			$count = mysqli_num_rows($result);
-			return $count;
+			return $result ? mysqli_num_rows($result) : 0;
 			break;
 		case "RS": //Record set
 			return $result;
@@ -57,6 +116,11 @@ function runQuery($link, $SQL, $return_results="NR"){
 
 
 function getRate($link, $cur){
+	// $cur becomes a column name, so only known currency columns are allowed.
+	$cur = strtoupper((string)$cur);
+	if(!in_array($cur, array("LKR", "GBP"), true)){
+		return "";
+	}
 	$SQL = "SELECT $cur FROM rates";
 	$ret = runQuery($link, $SQL, "RA");
 
@@ -69,7 +133,16 @@ function getRate($link, $cur){
 
 function exchange($link, $amount, $from, $to){
 	$rate=0;
-	
+	$from = strtoupper((string)$from);
+	$to = strtoupper((string)$to);
+	$amount = is_numeric($amount) ? (float)$amount : 0;
+	if($from === $to){
+		return $amount;
+	}
+	if(($from !== "USD" && getRate($link, $from) === "") || ($to !== "USD" && getRate($link, $to) === "")){
+		return 0;
+	}
+
 	if(strtoupper($from)=="USD"){
 		$rate = getRate($link, $to);
 		$rate = $rate[$to];
@@ -159,14 +232,15 @@ function fillSelect($link, $table, $text_field="", $label_field="", $value_field
 			
 		//Label field
 		if ($label_field!="" && array_key_exists($label_field,$record)){
-			$lbl_fld = "label='" . htmlentities($record[$label_field], ENT_QUOTES) . "'";
+			$lbl_value = $record[$label_field];
+			if($currency){
+				// Format the number itself, not the whole attribute string (that threw a TypeError on PHP 8).
+				$lbl_value = nice_number($lbl_value);
+			}
+			$lbl_fld = "label='" . htmlentities((string)$lbl_value, ENT_QUOTES) . "'";
 		} else {
 			//Label field not specified or not found in the results set
 			$lbl_fld = "";
-		}
-
-		if($currency){
-			$lbl_fld = nice_number($lbl_fld);
 		}
 		
 		//Value field
@@ -263,7 +337,7 @@ function getCheckBoxes($link, $name, $class, $table, $text_field="", $value_fiel
 		}
 
 		if($form!=""){
-			$frm = " form='" . $form . "' ";
+			$frm = " form='" . htmlspecialchars($form, ENT_QUOTES) . "' ";
 		} else {
 			$frm="";
 		}
@@ -272,7 +346,7 @@ function getCheckBoxes($link, $name, $class, $table, $text_field="", $value_fiel
 			$opt .= "<!--column starts --><div class='btn-group-vertical' style='padding:0 10px'>\n";
 		}
 		
-		$opt .= "<label><input name='" . $name . "' class='btn " . $class . "' type='checkbox' " . $frm . $vlu_fld . $sel . " >&nbsp;" . $txt_fld . "</label>&nbsp;</br>\n";
+		$opt .= "<label><input name='" . htmlspecialchars($name, ENT_QUOTES) . "' class='btn " . $class . "' type='checkbox' " . $frm . $vlu_fld . $sel . " >&nbsp;" . $txt_fld . "</label>&nbsp;</br>\n";
 		
 		if($cnt>=$elm_grp){
 			$opt .= "</div><!--column ends -->";
@@ -363,7 +437,7 @@ function getRadioButtons($link, $name, $class, $table, $text_field="", $value_fi
 		}
 
 		if($form!=""){
-			$frm = " form='" . $form . "' ";
+			$frm = " form='" . htmlspecialchars($form, ENT_QUOTES) . "' ";
 		} else {
 			$frm="";
 		}
@@ -372,7 +446,7 @@ function getRadioButtons($link, $name, $class, $table, $text_field="", $value_fi
 			$opt .= "<!--column starts -->\n";
 		}
 
-		$opt .= "<div class='col-xs-12 col-md-6'><input name='" . $name . "' class='" . $class . "' type='radio' " . $frm . $vlu_fld . $sel . " style='width:auto;margin:auto;'> <span class='" . $label_class . "'>" . $txt_fld . "</span></div>\n";
+		$opt .= "<div class='col-xs-12 col-md-6'><input name='" . htmlspecialchars($name, ENT_QUOTES) . "' class='" . htmlspecialchars($class, ENT_QUOTES) . "' type='radio' " . $frm . $vlu_fld . $sel . " style='width:auto;margin:auto;'> <span class='" . htmlspecialchars($label_class, ENT_QUOTES) . "'>" . $txt_fld . "</span></div>\n";
 		
 		if($cnt>=$elm_grp){
 			$opt .= "<!--column ends -->";
@@ -405,22 +479,22 @@ function addNewProperty($link, $bt,$pt, $bdrm, $btrm, $district, $city, $street,
 	} else {
 		$SQL = "INSERT INTO properties (property_id, business_type, property_type, bedrooms, bathrooms, district, city, street, lat, lon, keywords, description, price, currency, term, featured, status) VALUES (";
 		$SQL .= "NULL,";
-		$SQL .= "'" . $bt . "',";
-		$SQL .= "'" . $pt . "',";
-		$SQL .= "'" . $bdrm . "',";
-		$SQL .= "'" . $btrm . "',"; 
-		$SQL .= "'" . $district . "',"; 
-		$SQL .= "'" . $city . "',";
+		$SQL .= "'" . q($link, $bt) . "',";
+		$SQL .= "'" . q($link, $pt) . "',";
+		$SQL .= "'" . q($link, $bdrm) . "',";
+		$SQL .= "'" . q($link, $btrm) . "',"; 
+		$SQL .= "'" . q($link, $district) . "',"; 
+		$SQL .= "'" . q($link, $city) . "',";
 		$SQL .= "'" . mysqli_real_escape_string($link , $street ) . "',";
 		$SQL .= "'0',"; //Latitude
 		$SQL .= "'0',"; //Longitude
 		$SQL .= "'" . mysqli_real_escape_string($link , $keywords ) . "',";
 		$SQL .= "'" . mysqli_real_escape_string($link , $description ) . "',";
-		$SQL .= "'" . $price . "',";
-		$SQL .= "'" . $currency . "',";
-		$SQL .= "'" . $term . "',";
-		$SQL .= "'" . $featured . "',";
-		$SQL .= "'" . $status . "'";
+		$SQL .= "'" . q($link, $price) . "',";
+		$SQL .= "'" . q($link, $currency) . "',";
+		$SQL .= "'" . q($link, $term) . "',";
+		$SQL .= "'" . q($link, $featured) . "',";
+		$SQL .= "'" . q($link, $status) . "'";
 		$SQL .= ");";
 		
 		$ret = runQuery($link, $SQL, "RS");
@@ -441,8 +515,8 @@ function addNewProperty($link, $bt,$pt, $bdrm, $btrm, $district, $city, $street,
 
 function addNewFeature($link, $pid, $fid ){
 	$SQL = "INSERT INTO features (property_id, feature_id, feature_spec) VALUES (";
-	$SQL .= "'" . $pid . "',";
-	$SQL .= "'" . $fid . "',";
+	$SQL .= "'" . q($link, $pid) . "',";
+	$SQL .= "'" . q($link, $fid) . "',";
 	$SQL .= "'');";
 	
 	return runQuery($link, $SQL, "ST");
@@ -450,11 +524,11 @@ function addNewFeature($link, $pid, $fid ){
 
 function addNewImage($link, $pid, $img_id, $img_url,$img_type,$featured="N" ){
 	$SQL = "INSERT INTO images (img_id, property_id, img_url, img_type,featured) VALUES (";
-	$SQL .= "'',";
-	$SQL .= "'" . $pid . "',";
-	$SQL .= "'" . $img_url . "',";
-	$SQL .= "'" . $img_type . "',";
-	$SQL .= "'" . $featured . "');";
+	$SQL .= "NULL,"; // auto-increment ('' is rejected when the database runs in strict mode)
+	$SQL .= "'" . q($link, $pid) . "',";
+	$SQL .= "'" . q($link, $img_url) . "',";
+	$SQL .= "'" . q($link, $img_type) . "',";
+	$SQL .= "'" . q($link, $featured) . "');";
 	
 	return runQuery($link, $SQL, "ST");
 }
@@ -479,18 +553,19 @@ function getProperties($link, $bt,$pt, $features, $min_bdrm, $max_bdrm, $min_btr
 		$SQL = "SELECT * FROM property_search p, property_types pt, districts d, cities c";
 	}
 
-	
-	if(isset($features) && $features!="" && !empty($features)){
+	$sep = "";
+	$features = to_int_list($features);
+	if(!empty($features)){
 		$SQL .= ", features f WHERE ";
 		$SQL .= " f.property_id=p.property_id";
-		$sep = " AND ";			
+		$sep = " AND ";
 		foreach($features as $feature){
 			$SQL .= $sep . " f.feature_id =" . $feature;
-		}	
+		}
 	} else {
 		$SQL .= " WHERE ";
 	}
-	
+
 	$SQL .= $sep . " p.district=d.district_id";
 	$sep = " AND ";
 	$SQL .= $sep . " p.city=c.city_id";
@@ -499,72 +574,68 @@ function getProperties($link, $bt,$pt, $features, $min_bdrm, $max_bdrm, $min_btr
 	
 	//Check and set default values
 	if(isset($bt) && $bt!=""){	//Check for business type
-		$SQL .= $sep . " p.business_type='" . $bt . "'";
+		$SQL .= $sep . " p.business_type='" . q($link, $bt) . "'";
 	}
 	
 	if(isset($pt) && $pt!=""){	//Check for property type
-		$SQL .= $sep . " p.property_type='" . $pt . "'";
+		$SQL .= $sep . " p.property_type='" . q($link, $pt) . "'";
 	}
 
 	if(isset($min_bdrm) && $min_bdrm!=""){	//Check for min bedrooms
-		$SQL .= $sep . " p.bedrooms>='" . $min_bdrm . "'";
+		$SQL .= $sep . " p.bedrooms>='" . q($link, $min_bdrm) . "'";
 	}
 
 	if(isset($max_bdrm) && $max_bdrm!=""){	//Check for max bedrooms
-		$SQL .= $sep . " p.bedrooms<='" . $max_bdrm . "'";
+		$SQL .= $sep . " p.bedrooms<='" . q($link, $max_bdrm) . "'";
 	}
 
 	if(isset($min_btrm) && $min_btrm!=""){	//Check for min bathrooms
-		$SQL .= $sep . " p.bathrooms>='" . $min_btrm . "'";
+		$SQL .= $sep . " p.bathrooms>='" . q($link, $min_btrm) . "'";
 	}
 
 	if(isset($max_btrm) && $max_btrm!=""){	//Check for max bathrooms
-		$SQL .= $sep . " p.bathrooms<='" . $max_btrm . "'";
+		$SQL .= $sep . " p.bathrooms<='" . q($link, $max_btrm) . "'";
 	}
 
 	if(isset($min_price) && $min_price!=""){	//Check for min price
-		$SQL .= $sep . " aprice>='" . $min_price . "'";
+		$SQL .= $sep . " aprice>='" . q($link, $min_price) . "'";
 	}
 
 	if(isset($max_price) && $max_price!=""){	//Check for max price
-		$SQL .= $sep . " aprice<='" . $max_price . "'";
+		$SQL .= $sep . " aprice<='" . q($link, $max_price) . "'";
 	}
 	
 	if(isset($district) && $district!=""){	//Check for district
-		$SQL .= $sep . " p.district='" . $district . "'";
+		$SQL .= $sep . " p.district='" . q($link, $district) . "'";
 	}
 
 	if(isset($city) && $city!=""){	//Check for city
-		$SQL .= $sep . " p.city='" . $city . "'";
+		$SQL .= $sep . " p.city='" . q($link, $city) . "'";
 	}
 
 	if(isset($featured) && $featured!=""){	//Check for featured properties
-		$SQL .= $sep . " p.featured='" . $featured . "'";
+		$SQL .= $sep . " p.featured='" . q($link, $featured) . "'";
 	}
 
 	if(isset($keywords) && $keywords!=""){	//Check for keywords
-		$SQL .= $sep . " (p.keywords LIKE '%" . $keywords . "%'";
-		$SQL .= " OR p.description LIKE '%" . $keywords . "%')";
+		$SQL .= $sep . " (p.keywords LIKE '%" . q($link, $keywords) . "%'";
+		$SQL .= " OR p.description LIKE '%" . q($link, $keywords) . "%')";
 	}
 	
-	if(isset($sort_by) && $sort_by!=""){	//sorting
-		$SQL .= " ORDER BY p." . $sort_by . " ";
-		if(isset($sort_order) && $sort_order!=""){	//sorting order
-			$SQL .= $sort_order;
-		}
-		
+	if(isset($sort_by) && $sort_by!=""){	//sorting (column and direction from an allow-list)
+		list($sort_col, $sort_dir) = safe_sort($sort_by, $sort_order);
+		$SQL .= " ORDER BY p." . $sort_col . " " . $sort_dir;
 		$SQL .= ", p.property_id DESC";
 	}
-	
-	if($max_rec!=''){
-		$SQL .= " LIMIT " . $start_from . ", " . $max_rec;
-	}
-		
 
-	//echo "<!-- $SQL -->";
+	if($max_rec!=''){
+		$SQL .= " LIMIT " . to_int($start_from) . ", " . to_int($max_rec, 10);
+	}
+
+
 	if($count_only){
 		$ret = runQuery($link, $SQL, "RA");
-		return $ret[0]['record_count'];
+		return $ret ? $ret[0]['record_count'] : 0;
 	} else {
 		return runQuery($link, $SQL, "RA");
 	}
@@ -572,11 +643,13 @@ function getProperties($link, $bt,$pt, $features, $min_bdrm, $max_bdrm, $min_btr
 
 function getPropertyIDs($link,$id='', $bt='',$pt='', $min_bdrm='', $max_bdrm='', $min_btrm='', $max_btrm='', $min_price='', $max_price='', $district='', $city='', $keywords='', $features='', $featured='', $sort_by='', $sort_order='', $max_rec='', $older='' ){
 	if(isset($id) && $id!=""){
-		return json_encode($id);
+		return json_encode(to_int($id));
 	} else {
 		$SQL = "SELECT p.property_id FROM properties p";
 
-		if(isset($features) && $features!="" && !empty($features)){
+		$sep = "";
+		$features = to_int_list($features);
+		if(!empty($features)){
 			$SQL .= ", features f WHERE ";
 			$SQL .= " f.property_id=p.property_id";
 			$sep = " AND ";			
@@ -584,84 +657,85 @@ function getPropertyIDs($link,$id='', $bt='',$pt='', $min_bdrm='', $max_bdrm='',
 				$SQL .= $sep . " f.feature_id =" . $feature;
 			}
 		} else {
-			$SQL .= " WHERE ";
+			$SQL .= " WHERE 1=1";
+			$sep = " AND ";
 		}
 		
 		//Check and set default values
 		if(isset($bt) && $bt!=""){	//Check for business type
-			$SQL .= $sep . " p.business_type='" . $bt . "'";
+			$SQL .= $sep . " p.business_type='" . q($link, $bt) . "'";
 			$sep = " AND ";
 		}
 		
 		if(isset($pt) && $pt!=""){	//Check for property type
-			$SQL .= $sep . " p.property_type='" . $pt . "'";
+			$SQL .= $sep . " p.property_type='" . q($link, $pt) . "'";
 			$sep = " AND ";
 		}
 
 		if(isset($min_bdrm) && $min_bdrm!=""){	//Check for minimum bedrooms
-			$SQL .= $sep . " p.bedrooms>='" . $min_bdrm . "'";
+			$SQL .= $sep . " p.bedrooms>='" . q($link, $min_bdrm) . "'";
 			$sep = " AND ";
 		}
 		
 		if(isset($max_bdrm) && $max_bdrm!=""){	//Check for maximum bedrooms
-			$SQL .= $sep . " p.bedrooms<='" . $max_bdrm . "'";
+			$SQL .= $sep . " p.bedrooms<='" . q($link, $max_bdrm) . "'";
 			$sep = " AND ";
 		}
 
 		if(isset($min_btrm) && $min_btrm!=""){	//Check for minimum bathrooms
-			$SQL .= $sep . " p.bathrooms>='" . $min_btrm . "'";
+			$SQL .= $sep . " p.bathrooms>='" . q($link, $min_btrm) . "'";
 			$sep = " AND ";
 		}
 		
 		if(isset($max_btrm) && $max_btrm!=""){	//Check for maximum bathrooms
-			$SQL .= $sep . " p.bathrooms<='" . $max_btrm . "'";
+			$SQL .= $sep . " p.bathrooms<='" . q($link, $max_btrm) . "'";
 			$sep = " AND ";
 		}
 
 		if(isset($min_price) && $min_price!=""){	//Check for minimum price
-			$SQL .= $sep . " p.price>='" . $min_price . "'";
+			$SQL .= $sep . " p.price>='" . q($link, $min_price) . "'";
 			$sep = " AND ";
 		}
 		
 		if(isset($max_price) && $max_price!=""){	//Check for maximum price
-			$SQL .= $sep . " p.price<='" . $max_price . "'";
+			$SQL .= $sep . " p.price<='" . q($link, $max_price) . "'";
 			$sep = " AND ";
 		}
 
 		if(isset($district) && $district!=""){	//Check for district
-			$SQL .= $sep . " p.district='" . $district . "'";
+			$SQL .= $sep . " p.district='" . q($link, $district) . "'";
 			$sep = " AND ";
 		}
 
 		if(isset($city) && $city!=""){	//Check for city
-			$SQL .= $sep . " p.city='" . $city . "'";
+			$SQL .= $sep . " p.city='" . q($link, $city) . "'";
 			$sep = " AND ";
 		}
 
 		if(isset($featured) && $featured!=""){	//Check for featured properties
-			$SQL .= $sep . " p.featured='" . $featured . "'";
+			$SQL .= $sep . " p.featured='" . q($link, $featured) . "'";
 			$sep = " AND ";
 		}
 		
 		if(isset($keywords) && $keywords!=""){	//Check for keywords
-			$SQL .= $sep . " MATCH(keywords, description, street) AGAINST ('" . $keywords . "')";
+			$SQL .= $sep . " MATCH(keywords, description, street) AGAINST ('" . q($link, $keywords) . "')";
 			$sep = " AND ";
 		}
 
 		if(isset($older) && $older!=""){	//Check for older properties
-			$SQL .= $sep . " time_submitted< DATE_ADD(CURDATE(), INTERVAL -" . $older . " MONTH)";
+			$SQL .= $sep . " time_submitted< DATE_ADD(CURDATE(), INTERVAL -" . to_int($older) . " MONTH)";
 			$sep = " AND ";
 		}
 
-		if(isset($sort_by) && $sort_by!=""){	//Check for sort by
-			$SQL .= " ORDER BY " . $sort_by . $sort_order;
+		if(isset($sort_by) && $sort_by!=""){	//Check for sort by (allow-listed)
+			list($sort_col, $sort_dir) = safe_sort($sort_by, $sort_order);
+			$SQL .= " ORDER BY p." . $sort_col . " " . $sort_dir;
 		}
 		
 		if($max_rec!=''){
-			$SQL .= " LIMIT " . $max_rec;
+			$SQL .= " LIMIT " . to_int($max_rec, 10);
 		}
-		
-		//echo "<!--" . $SQL . "-->\n";
+
 		return runQuery($link, $SQL, "RA");
 	}
 }
@@ -677,10 +751,10 @@ function getOldProperties($link, $months, $count_only=false, $max_rec=''){
 		$SQL = "SELECT * FROM property_search ";
 	}
 	
-	$SQL .= " WHERE time_submitted< DATE_ADD(CURDATE(), INTERVAL -" . $months . " MONTH)"; 
+	$SQL .= " WHERE time_submitted< DATE_ADD(CURDATE(), INTERVAL -" . to_int($months) . " MONTH)"; 
 
 	if($max_rec!=''){
-		$SQL .= " LIMIT " . $max_rec;
+		$SQL .= " LIMIT " . to_int($max_rec, 10);
 	}
 	
 	//echo "<span>$SQL</span>";
@@ -689,7 +763,7 @@ function getOldProperties($link, $months, $count_only=false, $max_rec=''){
 
 function getPropertyByID($link, $pid){
 	$SQL = "SELECT * FROM properties p, business_types bt, property_types pt, districts d, cities c ";
-	$SQL .= " WHERE property_id='" . $pid . "'";
+	$SQL .= " WHERE property_id='" . q($link, $pid) . "'";
 	$SQL .= " AND p.district=d.district_id";
 	$SQL .= " AND p.city=c.city_id";
 	$SQL .= " AND p.property_type=pt.pt_id";
@@ -700,12 +774,12 @@ function getPropertyByID($link, $pid){
 
 function getPropertyByDistrictID($link, $did, $max_rec){
 	$SQL = "SELECT * FROM properties p, business_types bt, property_types pt, districts d, cities c ";
-	$SQL .= " WHERE p.district='" . $did . "'";
+	$SQL .= " WHERE p.district='" . q($link, $did) . "'";
 	$SQL .= " AND p.city=c.city_id";
 	$SQL .= " AND p.district=d.district_id";
 	$SQL .= " AND p.property_type=pt.pt_id";
 	$SQL .= " AND p.business_type=bt.bt_id";
-	$SQL .= " LIMIT " . $max_rec . ";";
+	$SQL .= " LIMIT " . to_int($max_rec, 10) . ";";
 	
 	//echo $SQL;
 	return runQuery($link, $SQL, "RA");
@@ -713,7 +787,7 @@ function getPropertyByDistrictID($link, $did, $max_rec){
 
 function getFeaturesByPropertyID($link, $pid){
 	$SQL = "SELECT * FROM features f, feature_types ft";
-	$SQL .= " WHERE f.property_id='" . $pid . "'";
+	$SQL .= " WHERE f.property_id='" . q($link, $pid) . "'";
 	$SQL .= " AND f.feature_id=ft.feature_id";
 	//echo $SQL;
 	return runQuery($link, $SQL, "RA");
@@ -721,63 +795,81 @@ function getFeaturesByPropertyID($link, $pid){
 
 function getPropertyImages($link,$pt_id, $img_count=99, $type=""){
 	if(isset($type) && $type!=""){
-		$type_filter = " AND img_type='" . $type . "'";
+		$type_filter = " AND img_type='" . q($link, $type) . "'";
 	} else {
 		$type_filter ="";
 	}
 	
-	$SQL = "SELECT * FROM images WHERE property_id='" . $pt_id . "' " . $type_filter . " ORDER BY images.featured DESC  LIMIT " . $img_count;
+	$SQL = "SELECT * FROM images WHERE property_id='" . q($link, $pt_id) . "' " . $type_filter . " ORDER BY images.featured DESC  LIMIT " . to_int($img_count, 99);
 	//echo $SQL;
 	return runQuery($link, $SQL, "RA");
 }
 
 function getImageByID($link,$pid, $img_id){
-	$SQL = "SELECT * FROM images WHERE property_id='" . $pid . "' AND img_id='" . $img_id . "' LIMIT 1";
+	$SQL = "SELECT * FROM images WHERE property_id='" . q($link, $pid) . "' AND img_id='" . q($link, $img_id) . "' LIMIT 1";
 	return runQuery($link, $SQL, "RA");
 }
 
 function getFeatureByID($link,$fid){
-	$SQL = "SELECT * FROM feature_types WHERE feature_id='" . $fid . "'";
+	$SQL = "SELECT * FROM feature_types WHERE feature_id='" . q($link, $fid) . "'";
 	$feature = runQuery($link, $SQL, "RA");
 	return $feature[0];
 }
 
 function getPropertyTypeByID($link,$ptid){
-	$SQL = "SELECT * FROM property_types WHERE pt_id='" . $ptid . "'";
+	$SQL = "SELECT * FROM property_types WHERE pt_id='" . q($link, $ptid) . "'";
 	$pts = runQuery($link, $SQL, "RA");
 	return $pts[0]['property_type_name'];
 }
 
 function getBusinessTypeByID($link,$btid){
-	$SQL = "SELECT * FROM business_types WHERE bt_id='" . $btid . "'";
+	$SQL = "SELECT * FROM business_types WHERE bt_id='" . q($link, $btid) . "'";
 	$pts = runQuery($link, $SQL, "RA");
 	return $pts[0]['business_type'];
 }
 
 function getDistrictByID($link,$did){
-	$SQL = "SELECT * FROM districts WHERE district_id='" . $did . "'";
+	$SQL = "SELECT * FROM districts WHERE district_id='" . q($link, $did) . "'";
 	$pts = runQuery($link, $SQL, "RA");
 	return $pts[0]['district_name'];
 }
 
 function getCityByID($link,$cid){
-	$SQL = "SELECT * FROM cities WHERE city_id='" . $cid . "'";
+	$SQL = "SELECT * FROM cities WHERE city_id='" . q($link, $cid) . "'";
 	$pts = runQuery($link, $SQL, "RA");
 	return $pts[0]['city_name'];
 }
 
+/**
+ * Delete an uploaded image file, but only if it lives inside the uploads/ folder.
+ * Records that are not local files (e.g. YouTube video tags) or files already gone count as success.
+ */
+function delete_upload_file($img_url){
+	$uploads = realpath(__DIR__ . "/uploads");
+	$path = realpath(__DIR__ . "/" . ltrim((string)$img_url, "/"));
+	if($path === false){
+		return true; // nothing on disk to delete
+	}
+	if($uploads === false || strpos($path, $uploads . DIRECTORY_SEPARATOR) !== 0 || !is_file($path)){
+		error_log("BritBrokers: refused to delete file outside uploads/: " . $img_url);
+		return false;
+	}
+	return unlink($path);
+}
+
 function setFeaturedImage($link, $pid, $img_id){
 	//Reset current featured images
-	$SQL = "UPDATE images SET featured='' WHERE property_id='" . $pid . "'";
+	$SQL = "UPDATE images SET featured='' WHERE property_id='" . q($link, $pid) . "'";
 	$status = runQuery($link, $SQL, "ST");
 	$ret = explode("|",$status);
 	
 	if($ret[0]=="success"){
 		//Set new featured images
-		$SQL = "UPDATE images SET featured='Y' WHERE property_id='" . $pid . "'";
-		$SQL .= " AND (img_id='" . $img_id . "'";
+		$SQL = "UPDATE images SET featured='Y' WHERE property_id='" . q($link, $pid) . "'";
+		$img_id = to_int($img_id);
+		$SQL .= " AND (img_id='" . q($link, $img_id) . "'";
 		$img_id++;
-		$SQL .= " OR img_id='" . $img_id . "')";
+		$SQL .= " OR img_id='" . q($link, $img_id) . "')";
 		$status = runQuery($link, $SQL, "ST");
 		//echo $SQL;
 		return $status;		
@@ -794,18 +886,11 @@ function deleteImages($link, $pid, $img_id){
 	if($img){
 		$image=$img[0];
 		//Delete physical image file
-		if(file_exists($image['img_url']) && unlink(get_absolute_path($image['img_url']))){
-			//$status .= $sep . "'success': '" . $image['img_url'] . "'";
-			$file_error='success';
-		} else {
-			//$status .= $sep . "'error': '" . $image['img_url'] . "'";
-			//echo "Image file could not be deleted";
-			$file_error='error';
-		}
+		$file_error = delete_upload_file($image['img_url']) ? 'success' : 'error';
 
 		//Delete DB record
-		$SQL = "DELETE FROM images WHERE property_id='" . $pid . "'";
-		$SQL .= " AND img_id='" . $img_id . "'";
+		$SQL = "DELETE FROM images WHERE property_id='" . q($link, $pid) . "'";
+		$SQL .= " AND img_id='" . q($link, $img_id) . "'";
 		$status = runQuery($link, $SQL, "ST");
 		
 		if($file_error=='error'){
@@ -827,20 +912,19 @@ function deleteAllImages($link, $pid){
 	if($imgs){
 		foreach($imgs as $image){
 			//var_dump($image);
-			$status .= "<br>Deleting file: " . $image['img_url'] . "...";
+			$status .= "<br>Deleting file: " . e($image['img_url']) . "...";
 			
-			if(file_exists($image['img_url']) && unlink($image['img_url'])){
-				$status .= $sep . "'done'<br>";
+			if(delete_upload_file($image['img_url'])){
+				$status .= "'done'<br>";
 				$file_error='success';
 			} else {
-				$status .= $sep . "'error'<br>";
-				//echo "Image file could not be deleted";
+				$status .= "'error'<br>";
 				$file_error='error';
 			}
 
 			//Delete DB records
-			$SQL = "DELETE FROM images WHERE property_id='" . $pid . "'";
-			$status .= "<br>Deleting DB records for property: " . $pid . "...";
+			$SQL = "DELETE FROM images WHERE property_id='" . q($link, $pid) . "'";
+			$status .= "<br>Deleting DB records for property: " . e($pid) . "...";
 			$status .= runQuery($link, $SQL, "ST");
 		}
 		if($file_error=='success' && $status){
@@ -856,7 +940,7 @@ function deleteAllImages($link, $pid){
 
 function deleteProperty($link, $pid){
 	//Deleting images
-	$SQL = "SELECT img_url FROM images WHERE property_id='" . $pid . "';";
+	$SQL = "SELECT img_url FROM images WHERE property_id='" . q($link, $pid) . "';";
 	$images =  runQuery($link, $SQL, "RA");
 
 	$file_error='';
@@ -870,7 +954,7 @@ function deleteProperty($link, $pid){
 	
 	if($images){
 		foreach($images as $image){
-			if(file_exists($image['img_url']) && unlink($_SERVER['DOCUMENT_ROOT'] . "/live/" . $image['img_url'])){
+			if(delete_upload_file($image['img_url'])){
 				$status .= $sep . "'success': '" . $image['img_url'] . "'";
 				$file_error='success';
 			} else {
@@ -885,19 +969,19 @@ function deleteProperty($link, $pid){
 	$status .= "}}";
 
 	$status .= ",{'image_record':";
-	$SQL = "DELETE FROM images WHERE property_id='" . $pid . "';";	
+	$SQL = "DELETE FROM images WHERE property_id='" . q($link, $pid) . "';";	
 	$images_error = runQuery($link, $SQL, "ST");
 	$status .= "'" . $images_error . "'";
 	$status .= "}";
 
 	$status .= ",{'features':";	
-	$SQL = "DELETE FROM features WHERE property_id='" . $pid . "';";
+	$SQL = "DELETE FROM features WHERE property_id='" . q($link, $pid) . "';";
 	$fatures_error = runQuery($link, $SQL, "ST");
 	$status .= "'" . $fatures_error . "'";
 	$status .= "}";
 	
 	$status .= ",{'property':";	
-	$SQL = "DELETE FROM properties WHERE property_id='" . $pid . "';";
+	$SQL = "DELETE FROM properties WHERE property_id='" . q($link, $pid) . "';";
 	$property_error = runQuery($link, $SQL, "ST");	
 	$status .= "'" . $property_error . "'";
 	$status .= "}";
@@ -943,15 +1027,15 @@ function updateProperty($link, $pid, $bt='',$pt='', $bdrm='', $btrm='', $distric
 		}
 
 		if((isset($street) && $street!="")){
-			$flds["street"] = mysqli_real_escape_string($link,$street);
+			$flds["street"] = $street;
 		}
 
 		if((isset($keywords) && $keywords!="")){
-			$flds["keywords"] = mysqli_real_escape_string ($link , $keywords);;
+			$flds["keywords"] = $keywords;
 		}
 
 		if((isset($description) && $description!="")){
-			$flds["description"] = mysqli_real_escape_string ($link , $description);
+			$flds["description"] = $description;
 		}
 
 		if((isset($price) && $price!="")){
@@ -978,10 +1062,11 @@ function updateProperty($link, $pid, $bt='',$pt='', $bdrm='', $btrm='', $distric
 		$sep="";
 		
 		foreach($flds as $key=>$value){
-			$SQL .= $sep . $key . "='" . $value . "'";
+			$SQL .= $sep . $key . "='" . q($link, $value) . "'";
 			$sep=", ";
 		}
 		
+		$pid = to_int($pid);
 		$SQL .= " WHERE property_id=" . $pid;
 		
 		$ret_val="success";
@@ -1002,7 +1087,7 @@ function updateProperty($link, $pid, $bt='',$pt='', $bdrm='', $btrm='', $distric
 		}
 		
 		if(isset($features) && $features!==""){
-			foreach($features as $feature){
+			foreach(to_int_list($features) as $feature){
 				$ret = addNewFeature($link,$pid,$feature);
 				$ret = explode("|",$ret);
 				if(!$ret[0]=="success"){
@@ -1016,27 +1101,13 @@ function updateProperty($link, $pid, $bt='',$pt='', $bdrm='', $btrm='', $distric
 		return "error";
 	}
 }
-function encrypt($key, $string){
-	return base64_encode(mcrypt_encrypt(MCRYPT_RIJNDAEL_256, md5($key), $string, MCRYPT_MODE_CBC, md5(md5($key))));
-}
-
-function decrypt($key, $string){
-	return rtrim(mcrypt_decrypt(MCRYPT_RIJNDAEL_256, md5($key), base64_decode($string), MCRYPT_MODE_CBC, md5(md5($key))), "\0");
-}
-
-function authenticate($user_id, $password){
-	//$password = decrypt('bbroKs!', $password);
-	if($user_id==="britbrokers" && $password==="temp123$"){
-		return true;
-	} else {
-		return false;
-	}
-}
+// encrypt()/decrypt() used mcrypt, which was removed in PHP 7.2. They were unused and have been deleted.
+// authenticate() now lives in auth.php and checks a password hash from the environment config.
 
 function fillCities($link, $district="", $selected=""){
 	//echo "#####" . $district;
 	if(isset($district) && $district!==""){
-		$filter = "district_id='" . $district . "'";
+		$filter = "district_id='" . q($link, $district) . "'";
 	} else {
 		$filter="";
 	}
@@ -1068,61 +1139,17 @@ function get_absolute_path($path) {
 	return implode(DIRECTORY_SEPARATOR, $absolutes);
 }
 
-function getQRCode($data, $level){
-	//set it to writeable location, a place for temp generated PNG files
-    $PNG_TEMP_DIR = dirname(__FILE__).DIRECTORY_SEPARATOR.'qr'.DIRECTORY_SEPARATOR;
-    
-    //html PNG location prefix
-    $PNG_WEB_DIR = 'qr/';
-
-    include "qr/qrlib.php"; 
-
-    //ofcourse we need rights to create temp dir
-    if (!file_exists($PNG_TEMP_DIR)){
-        mkdir($PNG_TEMP_DIR);
-    }
-    
-    $filename = $PNG_TEMP_DIR.'test.png';
-
-    $errorCorrectionLevel = 'L';
-    if (isset($level) && in_array($level, array('L','M','Q','H')))
-        $errorCorrectionLevel = $level;    
-
-    $matrixPointSize = 4;
-    if (isset($size))
-        $matrixPointSize = min(max((int)$size, 1), 10);
-
-    if (isset($data)) { 
-    
-        //it's very important!
-        if (trim($data) == '')
-            die('Empty QR Request!');
-            
-        // user data
-        $filename = $PNG_TEMP_DIR.'qr'.md5($data.'|'.$errorCorrectionLevel.'|'.$matrixPointSize).'.png';
-        //QRcode::png($data, $filename, $errorCorrectionLevel, $matrixPointSize, 2);    
-		//display generated file
-		//return '<img src="'.$PNG_WEB_DIR.basename($filename).'" />'; 
-		return '<img src="/qr/generic.png"/>';
-    } else {    
-    
-        //default data
-        echo 'Empty QR Request!';    
-        //QRcode::png('PHP QR Code :)', $filename, $errorCorrectionLevel, $matrixPointSize, 2);    
-        
-    }    	
-}
+// getQRCode() removed: QR codes are no longer used on the site.
 
 function curPageURL() {
-	$pageURL = 'http';
-	if (isset($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] == "on") {$pageURL .= "s";}
-	$pageURL .= "://";
-	if ($_SERVER["SERVER_PORT"] != "80") {
-	$pageURL .= $_SERVER["SERVER_NAME"].":".$_SERVER["SERVER_PORT"].$_SERVER["REQUEST_URI"];
-	} else {
-	$pageURL .= $_SERVER["SERVER_NAME"].$_SERVER["REQUEST_URI"];
+	$https = (!empty($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] !== "off");
+	$pageURL = $https ? "https://" : "http://";
+	$host = $_SERVER["SERVER_NAME"] ?? "localhost";
+	$port = (string)($_SERVER["SERVER_PORT"] ?? ($https ? "443" : "80"));
+	if (($https && $port !== "443") || (!$https && $port !== "80")) {
+		$host .= ":" . $port;
 	}
-	return $pageURL;
+	return $pageURL . $host . ($_SERVER["REQUEST_URI"] ?? "/");
 }
 
 function getYTThumbnail($url){
@@ -1131,51 +1158,46 @@ function getYTThumbnail($url){
 		return false;
 	}
 	$domain=parse_url($url,PHP_URL_HOST);
-	if($domain=='www.youtube.com' OR $domain=='youtube.com') // http://www.youtube.com/watch?v=t7rtVX0bcj8&feature=topvideos_film
-	{
-		if($querystring=parse_url($url,PHP_URL_QUERY))
-		{  
-			parse_str($querystring);
-			if(!empty($v)) return "http://img.youtube.com/vi/$v/0.jpg";
-			else return false;
+	$v = "";
+	if($domain=='www.youtube.com' || $domain=='youtube.com'){ // https://www.youtube.com/watch?v=t7rtVX0bcj8
+		$querystring = parse_url($url,PHP_URL_QUERY);
+		if($querystring){
+			parse_str($querystring, $params); // the one-argument form was removed in PHP 8
+			$v = $params['v'] ?? "";
 		}
-		else return false;
-	 
+	} elseif($domain == 'youtu.be'){ // https://youtu.be/t7rtVX0bcj8
+		$v = str_replace('/','', (string)parse_url($url, PHP_URL_PATH));
 	}
-	elseif($domain == 'youtu.be') // something like http://youtu.be/t7rtVX0bcj8
-	{
-		$v= str_replace('/','', parse_url($url, PHP_URL_PATH));
-		return (empty($v)) ? false : "http://img.youtube.com/vi/$v/0.jpg" ;
+	if(!preg_match('/^[A-Za-z0-9_-]{6,20}$/', $v)){
+		return false;
 	}
-	 
-	else
-	 
-	return false;
+	return "https://img.youtube.com/vi/$v/0.jpg";
 }
 
 function getUserInfo(){
+	$ip = $_SERVER['REMOTE_ADDR'] ?? "";
 	$info="";
-	$info .= "<br>Time: " . date('Y-m-d H:i:s', $_SERVER['REQUEST_TIME']);
-	$info .= "<br>Referer: " . $_SERVER['HTTP_REFERER'];
-	$info .= "<br>Browser: " . $_SERVER['HTTP_USER_AGENT'];
-	$info .= "<br>IP Address: " . $_SERVER['REMOTE_ADDR'];
-	$info .= "<br>IP Address: " . gethostbyaddr($_SERVER['REMOTE_ADDR']);
+	$info .= "<br>Time: " . date('Y-m-d H:i:s', $_SERVER['REQUEST_TIME'] ?? time());
+	$info .= "<br>Referer: " . e($_SERVER['HTTP_REFERER'] ?? "");
+	$info .= "<br>Browser: " . e($_SERVER['HTTP_USER_AGENT'] ?? "");
+	$info .= "<br>IP Address: " . e($ip);
+	$info .= "<br>Host name: " . e($ip !== "" ? gethostbyaddr($ip) : "");
 	return $info;
 }
 
 function nice_number($n) {
 	// first strip any formatting;
-	$n = (0+str_replace(",","",$n));
-   
-	// is this a number?
+	$n = str_replace(",", "", (string)$n);
+
+	// is this a number? (checked before arithmetic: PHP 8 throws on non-numeric strings)
 	if(!is_numeric($n)) return false;
-   
+	$n = 0 + $n;
+
 	// now filter it;
 	if($n>=1000000000000) return round(($n/1000000000000),1).' Tri';
 	else if($n>=1000000000) return round(($n/1000000000),1).' Bil';
 	else if($n>=1000000) return round(($n/1000000),1).' Mil';
-	//else if($n>1000) return round(($n/1000),1).' thousand';
-   
+
 	return number_format($n);
 }
 
@@ -1183,83 +1205,45 @@ function nice_number($n) {
 /*
 :::::::::::::::::::::::::::::::::::::::::::::::::::
 ::
-::	Definitions...
+::	Captcha
+::
+::	The answer is kept in the visitor's session, never sent to the browser.
+::	(The old version sent an encrypted copy of the answer to the browser and the
+::	mailer never checked it, so it could be bypassed.)
 ::
 */
 
-define("PASSWORD", "captcha" );
-define("CHARSLEN", 4 );
-
-/*
-:::::::::::::::::::::::::::::::::::::::::::::::::::
-::
-::	get_rnd_iv...
-::
-*/
-function get_rnd_iv ( $iv_len ) {
-    $iv = '';
-    while ( $iv_len-- > 0 ) {
-        $iv .= chr ( mt_rand ( ) & 0xFF );
-    }
-    return $iv;
+if(!defined("CHARSLEN")){
+	define("CHARSLEN", 4);
 }
 
-/*
-:::::::::::::::::::::::::::::::::::::::::::::::::::
-::
-::	md5_encrypt...
-::
-*/
-function md5_encrypt ( $plain_text, $password = PASSWORD, $iv_len = 16 ) {
-    $plain_text .= "\x13";
-    $n = strlen ( $plain_text );
-    if ( $n % 16 ) $plain_text .= str_repeat ( "\0", 16 - ( $n % 16 ) );
-    $i = 0;
-    $enc_text = get_rnd_iv ( $iv_len );
-    $iv = substr ( $password ^ $enc_text, 0, 512 );
-    while ( $i < $n ) {
-        $block = substr ( $plain_text, $i, 16 ) ^ pack ( 'H*', md5 ( $iv ) );
-        $enc_text .= $block;
-        $iv = substr ( $block . $iv, 0, 512 ) ^ $password;
-        $i += 16;
-    }
-    return base64_encode ( $enc_text );
-}
-
-/*
-:::::::::::::::::::::::::::::::::::::::::::::::::::
-::
-::	md5_decrypt...
-::
-*/
-function md5_decrypt ( $enc_text, $password = PASSWORD, $iv_len = 16 ) {
-    $enc_text = base64_decode ( $enc_text );
-    $n = strlen ( $enc_text );
-    $i = $iv_len;
-    $plain_text = '';
-    $iv = substr ( $password ^ substr ( $enc_text, 0, $iv_len ), 0, 512 );
-    while ( $i < $n ) {
-        $block = substr ( $enc_text, $i, 16 );
-        $plain_text .= $block ^ pack ( 'H*', md5 ( $iv ) );
-        $iv = substr ( $block . $iv, 0, 512 ) ^ $password;
-        $i += 16;
-    }
-    return preg_replace ( '/\\x13\\x00*$/', '', $plain_text );
-}
-
-/*
-:::::::::::::::::::::::::::::::::::::::::::::::::::
-::
-::	rnd_string...
-::
-*/
-function rnd_string ( $len = CHARSLEN ) {
-	$str = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+/** Random captcha text. Ambiguous characters (0/O, 1/l/I) are left out. */
+function rnd_string($len = CHARSLEN){
+	$str = "23456789abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ";
 	$val = '';
-
-	for ( $i = 0; $i < $len; $i++ ) {
-		$val .= $str { rand ( 0, strlen ( $str ) - 1 ) };
+	for($i = 0; $i < $len; $i++){
+		$val .= $str[random_int(0, strlen($str) - 1)];
 	}
-    return $val;
+	return $val;
 }
-?>
+
+/** Create a new captcha answer for this visitor and remember it in the session. */
+function captcha_new_code(){
+	start_secure_session();
+	$_SESSION['captcha_code'] = rnd_string();
+	return $_SESSION['captcha_code'];
+}
+
+/**
+ * Check a visitor's captcha answer (not case-sensitive).
+ * $consume = true makes the answer single-use, so it cannot be replayed.
+ */
+function captcha_check($answer, $consume = false){
+	start_secure_session();
+	$expected = $_SESSION['captcha_code'] ?? "";
+	$ok = ($expected !== "" && is_string($answer) && strcasecmp(trim($answer), $expected) === 0);
+	if($consume){
+		unset($_SESSION['captcha_code']);
+	}
+	return $ok;
+}

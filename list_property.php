@@ -16,7 +16,7 @@ $start_from = ($current_page-1) * $max_records_per_page;
 //$properties = getProperties($link,'','','','','','','','','','','','','',8);
 $properties = getProperties($link,$bt,$pt, $features, $min_bdrm, $max_bdrm, $min_btrm, $max_btrm, $min_price, $max_price, $keywords, $district, $city,$featured, $sort_by, $sort_order,$start_from,$max_records_per_page );
 
-$page_name=basename($_SERVER['PHP_SELF']);
+$page_name=basename($_SERVER['SCRIPT_NAME']);
 
 $title="";
 $place="";

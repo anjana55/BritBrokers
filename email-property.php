@@ -1,41 +1,29 @@
 <?php
-if(isset($_REQUEST['pid']) && $_REQUEST['pid']!=''){
-	$pid=$_REQUEST['pid'];
-
-	if(isset($_REQUEST['bt']) && $_REQUEST['bt']!=''){
-		$bt=$_REQUEST['bt'];
-	} else {
-		$bt="";
-	}
-
-	if(isset($_REQUEST['did']) && $_REQUEST['did']!=''){
-		$did=$_REQUEST['did'];
-	} else {
-		$did="";
-	}
-} else {
-	//echo "Invalid access attempt!";
-	header("Location: http://britbrokers.com"); /* Redirect browser */
+// Property ID must be a whole number; anything else goes back to the home page.
+$pid = (isset($_REQUEST['pid']) && is_string($_REQUEST['pid']) && preg_match('/^\d{1,10}$/', $_REQUEST['pid'])) ? $_REQUEST['pid'] : "";
+if($pid === ""){
+	header("Location: index.php"); /* Redirect browser */
 	exit();
 }
+$bt  = (isset($_REQUEST['bt']) && is_string($_REQUEST['bt']) && preg_match('/^[A-Za-z]{1,3}$/', $_REQUEST['bt'])) ? strtoupper($_REQUEST['bt']) : "";
+$did = (isset($_REQUEST['did']) && is_string($_REQUEST['did']) && preg_match('/^\d{1,10}$/', $_REQUEST['did'])) ? $_REQUEST['did'] : "";
+
+include_once __DIR__ . "/functions.php";
+$link = setConnection();
+$properties = getPropertyByID($link, $pid);
+if(!$properties){
+	http_response_code(404);
+	echo "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Property not found - British Brokers</title></head><body>";
+	echo "<p>Sorry, this property could not be found. It may have been let or sold.</p><p><a href=\"index.php\">Back to British Brokers</a></p></body></html>";
+	exit();
+}
+$property = $properties[0];
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <?php
-include_once "functions.php";
-$link = setConnection();
-
-$properties = getPropertyByID($link, $pid);
-
-if($properties){
-	$property = $properties[0];
-} else {
-	echo "Invalid property id";
-}
-//var_dump($properties);
-
 include "set_post_vars.php";
 
 $total_records = getProperties($link,$bt,$pt, $features, $min_bdrm, $max_bdrm, $min_btrm, $max_btrm, $min_price, $max_price, $keywords, $district, $city, $featured, $sort_by, $sort_order,null,null,true);
@@ -47,17 +35,13 @@ $start_from = ($current_page-1) * $max_records_per_page;
 //$properties = getProperties($link,'','','','','','','','','','','','','',8);
 $properties = getProperties($link,$bt,$pt, $features, $min_bdrm, $max_bdrm, $min_btrm, $max_btrm, $min_price, $max_price, $keywords, $district, $city,$featured, $sort_by, $sort_order,$start_from,$max_records_per_page );
 
-$page_name=basename($_SERVER['PHP_SELF']);
+$page_name=basename($_SERVER['SCRIPT_NAME']);
 
 $title = $property['property_type_name'] . " for " . $property['business_type'] . " at " . $property['city_name'] . ", " . $property['district_name'];
 
-$url = $_SERVER['REQUEST_URI']; //returns the current URL
-$parts = explode('/',$url);
-$dir = $_SERVER['SERVER_NAME'];
-for ($i = 0; $i < count($parts) - 1; $i++) {
- $dir .= $parts[$i] . "/";
-}
-$gpf = "http://" . $dir;
+// Absolute base URL for images and links in the email, from config (not from the request,
+// whose host name a visitor could fake to point the email's links at another site).
+$gpf = site_url() . "/";
 ?>
     <meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">	
@@ -1083,7 +1067,7 @@ $gpf = "http://" . $dir;
 									}
 
 									echo "<td>\n";
-										echo "<a id='img_" . $image['img_id'] . "' href='http://www.britbrokers.com/single-property.php?pid=$pid'>";
+										echo "<a id='img_" . $image['img_id'] . "' href='" . e($gpf) . "single-property.php?pid=" . (int)$pid . "'>";
 										echo "<img class='img-thumbnail img-responsive' src='" . $gpf . $image['img_url'] . "' width='200px' alt=''/>\n";
 										echo "</a>\n";
 									echo "</td>\n";
@@ -1155,12 +1139,7 @@ $gpf = "http://" . $dir;
 
                             <div id="tab1" class="lt_content">
 								<div class="container">
-									<div class="col-md-3 col-lg-3">
-									<?php
-										echo getQRCode(curPageURL(),"M");
-									?>
-									</div>
-									<div class="col-md-9 col-lg-9">
+									<div class="col-md-12 col-lg-12">
 									<?php
 										echo $property['description'];
 									?>

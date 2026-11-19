@@ -1,14 +1,6 @@
 <?php
-session_start();
-
-if(isset($_SESSION['user']) && $_SESSION['user']=="British Brokers"){
-	//echo "ok";
-} else {
-	//echo "Invalid access attempt!";
-	header("Location: http://britbrokers.com"); /* Redirect browser */
-	exit();
-}
-
+require_once __DIR__ . "/auth.php";
+require_admin();
 ?>
 <!DOCTYPE html>
 <html lang="en">

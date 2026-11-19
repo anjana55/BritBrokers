@@ -33,7 +33,10 @@
 						<textarea id="c_message" name="c_message" rows="5" placeholder="Your Message" class="form-control input-lg" required></textarea>
 					</div>
 				</div>
-				<input type="hidden" id="user_info" name="user_info" value="<hr>Property ID: <?php echo  $pid . getUserInfo();  ?>" />
+				<input type="hidden" id="c_pid" name="c_pid" value="<?php echo htmlspecialchars((string)($pid ?? ""), ENT_QUOTES); ?>" />
+				<div style="position:absolute;left:-10000px;" aria-hidden="true">
+					<input type="text" id="c_website" name="c_website" tabindex="-1" autocomplete="off" />
+				</div>
 			</form>
 			<div id="error_msg" class="col-md-12">
 			</div>
@@ -51,21 +54,16 @@
 		$("#msg_send").click(function(e){
 			if($("#c_message").val()!=="" && $("#c_email").val()!==""){
 				e.preventDefault();
-				var msg="";
-				msg = $("#c_message").val();
-				msg += "<br/><hr>Hidden User Information<br/>";
-				msg += $("#user_info").val();
 				$.ajax({
 					type: 'POST',
 					url: 'mailman.php',
 					data: {
-						from_name: $("#c_name").val(),
-						from_email: $("#c_email").val() ,
-						to_name:'Customer Support - British Brokers',
-						to_email:'info@britbrokers.com',
-						subject: 'Contact us request from ' + $("#c_name").val(),
-						method:'text',
-						message:msg},
+						type: 'contact',
+						name: $("#c_name").val(),
+						email: $("#c_email").val(),
+						message: $("#c_message").val(),
+						pid: $("#c_pid").val(),
+						website: $("#c_website").val()},
 					success: function(response) {
 						if(response!=="" && response.length>2){
 							$("#error_msg").addClass("alert alert-success");

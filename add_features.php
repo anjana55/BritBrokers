@@ -1,9 +1,10 @@
+<?php require_once __DIR__ . "/functions.php"; require_admin_ajax(); // admin only ?>
 <?php
 	include_once("functions.php");
 	$link = setConnection();
 	
 	if(isset($_REQUEST['id']) && $_REQUEST['id']!=""){
-		$prop_id=$_REQUEST['id'];
+		$prop_id = to_int($_REQUEST['id'], 0) ?: "";
 	} else {
 		$prop_id="";
 	}
