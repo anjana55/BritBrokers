@@ -1,41 +1,34 @@
 <?php
-if(isset($_REQUEST['pid']) && $_REQUEST['pid']!=''){
-	$pid=$_REQUEST['pid'];
+include_once __DIR__ . "/functions.php";
 
-	if(isset($_REQUEST['bt']) && $_REQUEST['bt']!=''){
-		$bt=$_REQUEST['bt'];
-	} else {
-		$bt="";
-	}
-
-	if(isset($_REQUEST['did']) && $_REQUEST['did']!=''){
-		$did=$_REQUEST['did'];
-	} else {
-		$did="";
-	}
-} else {
-	//echo "Invalid access attempt!";
-	header("Location: http://britbrokers.com"); /* Redirect browser */
+// Property ID must be a whole number; anything else goes back to the home page.
+$pid = (isset($_REQUEST['pid']) && is_string($_REQUEST['pid']) && preg_match('/^\d{1,10}$/', $_REQUEST['pid'])) ? $_REQUEST['pid'] : "";
+if($pid === ""){
+	header("Location: index.php"); /* Redirect browser */
 	exit();
 }
+$bt  = (isset($_REQUEST['bt']) && is_string($_REQUEST['bt']) && preg_match('/^[A-Za-z]{1,3}$/', $_REQUEST['bt'])) ? strtoupper($_REQUEST['bt']) : "";
+$did = (isset($_REQUEST['did']) && is_string($_REQUEST['did']) && preg_match('/^\d{1,10}$/', $_REQUEST['did'])) ? $_REQUEST['did'] : "";
+
+// New captcha answer for the "send to a friend" form (kept in the session, before any output)
+captcha_new_code();
+$share_url = site_url() . "/single-property.php?pid=" . $pid;
+
+$link = setConnection();
+$properties = getPropertyByID($link, $pid);
+if(!$properties){
+	http_response_code(404);
+	echo "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Property not found - British Brokers</title></head><body>";
+	echo "<p>Sorry, this property could not be found. It may have been let or sold.</p><p><a href=\"index.php\">Back to British Brokers</a></p></body></html>";
+	exit();
+}
+$property = $properties[0];
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <?php
-include_once "functions.php";
-$link = setConnection();
-
-$properties = getPropertyByID($link, $pid);
-
-if($properties){
-	$property = $properties[0];
-} else {
-	echo "Invalid property id";
-}
-//var_dump($properties);
-
 include "set_post_vars.php";
 
 $total_records = getProperties($link,$bt,$pt, $features, $min_bdrm, $max_bdrm, $min_btrm, $max_btrm, $min_price, $max_price, $keywords, $district, $city, $featured, $sort_by, $sort_order,null,null,true);
@@ -47,7 +40,7 @@ $start_from = ($current_page-1) * $max_records_per_page;
 //$properties = getProperties($link,'','','','','','','','','','','','','',8);
 $properties = getProperties($link,$bt,$pt, $features, $min_bdrm, $max_bdrm, $min_btrm, $max_btrm, $min_price, $max_price, $keywords, $district, $city,$featured, $sort_by, $sort_order,$start_from,$max_records_per_page );
 
-$page_name=basename($_SERVER['PHP_SELF']);
+$page_name=basename($_SERVER['SCRIPT_NAME']);
 include "header.php";
 
 $title = $property['property_type_name'] . " for " . $property['business_type'] . " at " . $property['city_name'] . ", " . $property['district_name'];
@@ -196,7 +189,6 @@ $title = $property['property_type_name'] . " for " . $property['business_type'] 
 				type: 'POST',
 				url: 'ajax_functions.php',
 				data: {
-						cid: $("#cid").val(),
 						uid: $("#captcha").val(),
 						tsk: $("#tsk").val()
 					},
@@ -206,14 +198,13 @@ $title = $property['property_type_name'] . " for " . $property['business_type'] 
 							type: 'POST',
 							url: 'mailman.php',
 							data: {
-									from_name: "British Brokers",
-									from_email: "contact@britbrokers.com" ,
-									to_name: $("#s_fname").val(),
-									to_email: $("#s_femail").val(),
-									subject: $("#s_name").val() + ' wants you to take a look at this property at britbrokers.com',
-									method:'url',
-									message:$("#s_message").val(),
-									url: $("#prop_url").val()
+									type: 'share',
+									s_name: $("#s_name").val(),
+									s_fname: $("#s_fname").val(),
+									s_femail: $("#s_femail").val(),
+									message: $("#s_message").val(),
+									pid: $("#share_pid").val(),
+									captcha: $("#captcha").val()
 								},
 							success: function(response) {
 								if(response!=="" && response.length>2){
@@ -535,7 +526,6 @@ include "slider_full.php";
 								    <!--
 									<div class="col-md-3 col-lg-3">
 									<?php
-										//echo getQRCode(curPageURL(),"M");
 									?>
 									</div>
 									-->
@@ -566,14 +556,11 @@ include "slider_full.php";
                             </div>
 							<div id="tab3" class="lt_content">
 								<div class="social-icons">
-									<a href="https://www.facebook.com/sharer/sharer.php?u=<?php echo $_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'].$_SERVER['QUERY_STRING']; ?>">
+									<a href="https://www.facebook.com/sharer/sharer.php?u=<?php echo e(rawurlencode($share_url)); ?>" target="_blank" rel="noopener">
 									<img alt="Share with Facebook" src="img/social-icons/facebook.png">
 									</a>
-									<a href="https://twitter.com/home?status=<?php echo $_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'].$_SERVER['QUERY_STRING']; ?>">
+									<a href="https://twitter.com/intent/tweet?url=<?php echo e(rawurlencode($share_url)); ?>" target="_blank" rel="noopener">
 									<img alt="Share with Twitter" src="img/social-icons/twitter.png">
-									</a>
-									<a href="https://plus.google.com/share?url=<?php echo $_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'].$_SERVER['QUERY_STRING']; ?>">
-									<img alt="Share with Google+" src="img/social-icons/google+.png">
 									</a>
 									<button type="button" class="btn btn-default" id="btn_send" style="padding:5px;"><img src="img/email.png" width="16px;">&nbsp;Send to a friend</button><br/>
 								</div>
@@ -632,18 +619,12 @@ include "slider_full.php";
 													<label for="captcha" class="control-label input">Human Verification</label>
 												</div>
 												<div class="col-md-8">
-													<?php
-													$rnd = rnd_string();
-													$uid = urlencode(md5_encrypt($rnd));
-													$cid = md5_encrypt($rnd);
-													?>
 													<div class="col-xs-4">
-														<img src="captcha_image.php?uid=54;<?php echo $uid ?>" alt="" align="left" style="padding:3px">
+														<img src="captcha_image.php?t=<?php echo time(); ?>" alt="Verification code" align="left" style="padding:3px">
 													</div>
 													<div class="col-xs-4">
 														<input type="hidden" name="tsk" id="tsk" value="capt" />
-														<input type="hidden" name="cid" id="cid" value="<?php echo $cid; ?>" />
-														<input type="text" name="uid" id="captcha" required/><br/>
+														<input type="text" name="uid" id="captcha" autocomplete="off" required/><br/>
 														<span id="cpt_error" class="error" style="display:none;">Human validation failed</span>
 														<div class="help-block with-errors"></div>
 													</div>
@@ -653,9 +634,7 @@ include "slider_full.php";
 												</div>
 											</div>
 											<div class="form-group">
-												<input type=hidden name="cid" value="<?php echo $cid ?>">
-												<input type="hidden" name="message[]" value="<hr>Property ID: <?php echo  $pid . getUserInfo();  ?>" />
-												<input type="hidden" id="prop_url"  name="prop_url" value="<?php echo "http://www.britbrokers.com/live/email-property.php?pid=" . $pid; ?>" />
+												<input type="hidden" id="share_pid" name="share_pid" value="<?php echo e($pid); ?>" />
 											</div>
 										</form>
 									</div>

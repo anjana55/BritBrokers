@@ -1,3 +1,4 @@
+<?php require_once __DIR__ . "/functions.php"; require_admin_ajax(); // admin only ?>
 <?php
 	include_once("functions.php");
 	$link = setConnection();
@@ -5,10 +6,10 @@
 	$no_recs = true;
 	
 	if(isset($_REQUEST['pid']) && $_REQUEST['pid']!=""){
-		$pid =  $_REQUEST['pid'];
+		$pid = to_int($_REQUEST['pid'], 0);
 		$property = getPropertyByID($link, $pid);
-		$property = $property[0];
-		$no_recs = false;
+		$property = $property ? $property[0] : "";
+		$no_recs = !$property;
 	} else {
 		$pid="";
 		$property="";

@@ -117,12 +117,10 @@
 								echo " Start page: " . $start_page;
 								echo " End Page: " . $end_page;
 								*/
-								$params="";
-								foreach($_REQUEST as $key=>$val){
-									if($key!="pg"){
-										$params .= "&" . $key . "=" . $val;
-									}
-								}
+								// Keep the current search in the page links (URL-encoded and HTML-escaped)
+								$query_params = $_GET;
+								unset($query_params['pg']);
+								$params = $query_params ? e("&" . http_build_query($query_params)) : "";
 								
 								echo "<nav style='clear:both;'>";
 								echo "  <ul class='pagination pagination-lg'>";

@@ -15,25 +15,18 @@ $(document).ready(function(){
 	
 	$("#send").click(function(){
 		if($("#email").val()!=="" && $("#message").val()!==""){
-			var msg="";
-			msg="Contact us request from britbrokers.com<br/>";
-			msg += "Senders Name: " + $("#name").val() + "<br/>";
-			msg += "Senders Email: " + $("#email").val() + "<br/>";
-			msg += "Senders Phone: " + $("#phone").val() + "<br/><br/>";
-			msg +=  $("#message").val();
 			$("#loadingDiv").modal("show");
 			
 		   $.ajax({
 				type: 'POST',
 				url: 'mailman.php',
 				data: {
-					from_name: $("#name").val(),
-					from_email: $("#email").val() ,
-					to_name:'Customer Support - britbrokers.com',
-					to_email:'info@britbrokers.com',
-					subject: 'Contact us request from ' + $("#name").val(),
-					method:'text',
-					message:msg},
+					type: 'contact',
+					name: $("#name").val(),
+					email: $("#email").val(),
+					phone: $("#phone").val(),
+					message: $("#message").val(),
+					website: $("#website").val()},
 				success: function(response) {
 					$("#pop_msg").modal("show");
 					if(response!=="" && response.length>2){
@@ -81,6 +74,11 @@ include "navigation.php";
 		<h4 class="page_title">Contact</h4>
 		<div class="">
 			<form id="contact" name="form1" method="post" action="#">
+
+				<div style="position:absolute;left:-10000px;" aria-hidden="true">
+					<label for="website">Leave this empty</label>
+					<input type="text" name="website" id="website" tabindex="-1" autocomplete="off" />
+				</div>
 
 				<div class="col-xs-12 col-sm-4">
 					<label>Name</label>

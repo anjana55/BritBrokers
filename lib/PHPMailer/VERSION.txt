@@ -1,0 +1,2 @@
+PHPMailer v6.12.0 (https://github.com/PHPMailer/PHPMailer), LGPL-2.1. Only PHPMailer.php, SMTP.php and Exception.php are included.
+To update: copy those files from a newer release, or move to Composer (phpmailer/phpmailer).

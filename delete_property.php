@@ -1,8 +1,17 @@
+<?php require_once __DIR__ . "/functions.php"; require_admin_ajax(); // admin only ?>
 <?php
 	$no_recs = true;
 	
 	if(isset($_REQUEST['pids']) && $_REQUEST['pids']!=""){
-		$pids = json_decode($_REQUEST['pids']);
+		// Search results arrive as JSON: [{"property_id": 12}, ...]. Keep only whole-number IDs.
+		$pids = array();
+		$decoded = json_decode((string)$_REQUEST['pids'], true);
+		foreach((is_array($decoded) ? $decoded : array()) as $row){
+			$id = to_int(is_array($row) ? ($row['property_id'] ?? "") : $row, 0);
+			if($id > 0){
+				$pids[] = (object)array("property_id" => $id);
+			}
+		}
 		//var_dump($pids);
 		if($pids){
 			$no_recs = false;

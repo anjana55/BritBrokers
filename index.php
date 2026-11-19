@@ -52,9 +52,9 @@ include "header.php";
 <?php
 include "navigation.php";
 include_once "functions.php";
-include "set_post_vars.php";
 $link = setConnection();
-$page_name=basename($_SERVER['PHP_SELF']);
+include "set_post_vars.php";
+$page_name=basename($_SERVER['SCRIPT_NAME']);
 
 
 

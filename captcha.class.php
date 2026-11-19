@@ -15,25 +15,25 @@
 ::
 */
 
-include "GIFEncoder.class.php";
+include_once __DIR__ . "/GIFEncoder.class.php";
 
-define ( ANIM_FRAMES,  5 );
-define ( ANIM_DELAYS, 10 );
+if ( !defined ( "ANIM_FRAMES" ) ) define ( "ANIM_FRAMES",  5 );
+if ( !defined ( "ANIM_DELAYS" ) ) define ( "ANIM_DELAYS", 10 );
 
 Class Captcha {
-	var $image;
+	public $image;
 
-	function Captcha ( $text, $font, $color ) {
+	public function __construct ( $text, $font, $color ) {
 		$C              = HexDec ( $color );
-		$R              = floor ( $C / pow ( 256, 2 ) );
-		$G              = floor ( ( $C % pow ( 256, 2 ) ) / pow ( 256, 1 ) );
-		$B              = floor ( ( ( $C % pow ( 256, 2 ) ) % pow ( 256, 1 ) ) / pow ( 256, 0 ) );
+		$R              = (int) floor ( $C / pow ( 256, 2 ) );
+		$G              = (int) floor ( ( $C % pow ( 256, 2 ) ) / pow ( 256, 1 ) );
+		$B              = (int) floor ( ( ( $C % pow ( 256, 2 ) ) % pow ( 256, 1 ) ) / pow ( 256, 0 ) );
 		$fsize          = 32;
 		$bound          = array ( );
 		$bound          = imageTTFBbox ( $fsize, 0, $font, $text );
-		$this->image    = imageCreateTrueColor ( $bound [ 4 ] + 5, abs($bound [ 5 ] ) + 15 );
+		$this->image    = imageCreateTrueColor ( (int) ( $bound [ 4 ] + 5 ), (int) ( abs ( $bound [ 5 ] ) + 15 ) );
 		imageFill       ( $this->image, 0, 0, ImageColorAllocate ( $this->image, 255, 255, 255 ) );
-		imagettftext    ( $this->image, $fsize, 0, 2, abs( $bound [ 5 ] ) + 5, ImageColorAllocate ( $this->image, $R, $G, $B ), $font, $text );
+		imagettftext    ( $this->image, $fsize, 0, 2, (int) ( abs ( $bound [ 5 ] ) + 5 ), ImageColorAllocate ( $this->image, $R, $G, $B ), $font, $text );
 	}
 	/*
 	:::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -41,7 +41,7 @@ Class Captcha {
 	::	DoNoise...
 	::
 	*/
-	function DoNoise ( $image, $G0, $C0 ) {
+	public static function DoNoise ( $image, $G0, $C0 ) {
 		$W = imageSX ( $image );
 		$H = imageSY ( $image );
 
@@ -57,10 +57,10 @@ Class Captcha {
 				$R  = ( $P >> 16 ) & 0xFF;
 				$G  = ( $P >>  8 ) & 0xFF;
 				$B  = ( $P >>  0 ) & 0xFF;
-				$N  = rand ( 0, $G0 ) - $G1;
-				$R += 255 + $N + mt_rand ( 0, $C0 ) - $C1;
-				$G += 255 + $N + mt_rand ( 0, $C0 ) - $C1;
-				$B += 255 + $N + mt_rand ( 0, $C0 ) - $C1;
+				$N  = (int) ( mt_rand ( 0, $G0 ) - $G1 );
+				$R += 255 + $N + (int) ( mt_rand ( 0, $C0 ) - $C1 );
+				$G += 255 + $N + (int) ( mt_rand ( 0, $C0 ) - $C1 );
+				$B += 255 + $N + (int) ( mt_rand ( 0, $C0 ) - $C1 );
 				imageSetPixel ( $image, $x, $y, ( $arrLUT [ $R ] << 16 ) | ( $arrLUT [ $G ] << 8 ) | $arrLUT [ $B ] );
 			}
 		}
@@ -71,7 +71,9 @@ Class Captcha {
 	::	AnimatedOut...
 	::
 	*/
-	function AnimatedOut ( ) {
+	public function AnimatedOut ( ) {
+		$f_arr = array ( );
+		$d_arr = array ( );
 
 		for ( $i = 0; $i < ANIM_FRAMES; $i++ ) {
 			$image = imageCreateTrueColor ( imageSX ( $this->image ), imageSY ( $this->image ) );
@@ -81,7 +83,6 @@ Class Captcha {
 
 				Ob_Start		(			);
 				imageGif		( $image	);
-				imageDestroy	( $image	);
 
 				$f_arr [ ] = Ob_Get_Contents ( );
 				$d_arr [ ] = ANIM_DELAYS;
