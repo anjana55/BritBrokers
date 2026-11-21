@@ -3,7 +3,7 @@
  * Property photo upload (admin only), called by Dropzone on the add/edit property screens.
  *
  * Security:
- *  - admin session and POST required
+ *  - admin session, POST and the session's CSRF token required
  *  - the file must decode as a real JPEG, PNG, GIF or WebP image (checked from its content, not its name)
  *  - the image is always re-encoded and saved as .jpg under a generated name,
  *    so nothing the visitor sends ends up in the file name or survives as executable content
@@ -12,11 +12,7 @@ require_once __DIR__ . "/functions.php";
 require_once __DIR__ . "/image_processing.php";
 
 require_admin_ajax();
-if($_SERVER['REQUEST_METHOD'] !== 'POST'){
-	http_response_code(405);
-	echo "Error uploading image(s)";
-	exit();
-}
+require_csrf();
 
 $link = setConnection();
 $prop_id = to_int($_REQUEST['prop_id'] ?? "", 0);

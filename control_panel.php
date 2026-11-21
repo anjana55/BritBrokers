@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . "/auth.php";
+require_once __DIR__ . "/functions.php";
 require_admin();
 ?>
 <!DOCTYPE html>
@@ -7,6 +7,7 @@ require_admin();
 <head>
 <?php
 include "header.php";
+echo csrf_meta(); // adds the CSRF token to every AJAX request made from this page and its screens
 ?>
 <title>British Brokers Real Estate & Lettings Agent specialise in Property across Colombo, Sri Lanka.</title>
 <meta name="description" content="British Brokers – The Home of Colombo Property.  Offering our clients the finest properties in the market, cutting edge technology, high profile marketing and professional credentials, British Brokers is Colombo’s leading property agent.">
@@ -45,10 +46,10 @@ $(document).ready(function() {
 	
 	$("#btn_logoff").click(function(){
 		$.ajax({
+		  type: "POST",
 		  url: "logoff.php",
-		  success: function(data){
-			var url = "http://britbrokers.com";
-			$(location).attr('href',url);
+		  complete: function(){
+			$(location).attr('href', "index.php");
 		  }
 		});			
 	});

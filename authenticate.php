@@ -1,36 +1,33 @@
 <?php
-include_once __DIR__ . "/auth.php";
+/*
+ * Admin login (called by login.php). Replies "true" or "false"; "locked" when throttled.
+ */
+require_once __DIR__ . "/functions.php";
 start_secure_session();
 
-if($_SERVER['REQUEST_METHOD'] !== 'POST'){
-	http_response_code(405);
+if(($_SERVER['REQUEST_METHOD'] ?? "") !== 'POST' || !csrf_valid()){
+	http_response_code(403);
 	echo "false";
 	exit();
 }
 
-// Simple throttle: after 5 failed attempts in this session, wait 15 minutes.
-$failures = (int)($_SESSION['login_failures'] ?? 0);
-$locked_until = (int)($_SESSION['login_locked_until'] ?? 0);
-if($locked_until > time()){
-	echo "false";
+$username = isset($_POST['user_id']) && is_string($_POST['user_id']) ? trim($_POST['user_id']) : "";
+$password = isset($_POST['password']) && is_string($_POST['password']) ? $_POST['password'] : "";
+
+if(login_is_throttled($username)){
+	record_login_attempt($username, false);
+	echo "locked";
 	exit();
 }
 
-$user = $_POST['user_id'] ?? "";
-$pass = $_POST['password'] ?? "";
+$user = authenticate($username, $password);
+record_login_attempt($username, (bool)$user);
 
-if(authenticate($user, $pass)){
-	unset($_SESSION['login_locked_until']);
-	login_admin();
+if($user){
+	login_admin($user);
 	echo "true";
 } else {
-	$failures++;
-	$_SESSION['login_failures'] = $failures;
-	if($failures >= 5){
-		$_SESSION['login_locked_until'] = time() + 15 * 60;
-		$_SESSION['login_failures'] = 0;
-	}
-	error_log("BritBrokers: failed admin login from " . ($_SERVER['REMOTE_ADDR'] ?? "?"));
-	sleep(1); // slows down password guessing
+	error_log("BritBrokers: failed admin login for '" . mb_substr($username, 0, 50) . "' from " . client_ip());
+	usleep(random_int(300000, 800000)); // slows down password guessing
 	echo "false";
 }

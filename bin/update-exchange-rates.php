@@ -31,8 +31,7 @@ if(!is_numeric($lkr) || !is_numeric($gbp)){
 }
 
 $link = setConnection();
-$SQL = "UPDATE rates SET LKR=" . (float)$lkr . ", GBP=" . (float)$gbp;
-$status = runQuery($link, $SQL, "ST");
+$status = db_status($link, "UPDATE rates SET LKR = ?, GBP = ?", array((float)$lkr, (float)$gbp));
 mysqli_close($link);
 
 echo "LKR=" . $lkr . " GBP=" . $gbp . " (" . $status . ")" . PHP_EOL;

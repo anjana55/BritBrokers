@@ -8,7 +8,7 @@ include_once __DIR__ . "/config.php";
 include_once __DIR__ . "/auth.php";
 
 // Keep the legacy "return false on error" behaviour of mysqli (PHP 8.1+ throws by default).
-// Errors are written to the PHP error log by runQuery() instead of being shown to visitors.
+// Errors are written to the PHP error log by db_run() instead of being shown to visitors.
 mysqli_report(MYSQLI_REPORT_OFF);
 
 /**
@@ -17,7 +17,8 @@ mysqli_report(MYSQLI_REPORT_OFF);
  * The site's tables are declared latin1 but hold UTF-8 text (written that way by the old PHP 5 code).
  * A latin1 connection passes those bytes through unchanged, which is what PHP 5 did. PHP 8 connects
  * as utf8mb4 by default, which converts them a second time and shows "â€™" instead of "’".
- * Override with DB_CHARSET (utf8mb4 once the tables have been converted).
+ * migrations/002 converts the tables to real utf8mb4, so from this release the default is utf8mb4.
+ * Set DB_CHARSET="latin1" only to run this code against a database that has not been migrated yet.
  */
 function setConnection($charset = null){
 	$link = @mysqli_connect(db_host(), db_user(), db_password(), db_name());
@@ -26,19 +27,8 @@ function setConnection($charset = null){
 		http_response_code(503);
 		die("The site is temporarily unavailable. Please try again shortly.");
 	}
-	mysqli_set_charset($link, $charset ?? cfg("DB_CHARSET", "latin1"));
+	mysqli_set_charset($link, $charset ?? cfg("DB_CHARSET", "utf8mb4"));
 	return $link;
-}
-
-/**
- * Escape a value for use inside a single-quoted SQL string literal.
- * Interim protection until queries move to prepared statements (Phase 3).
- */
-function q($link, $value){
-	if(is_array($value)){
-		$value = "";
-	}
-	return mysqli_real_escape_string($link, (string)$value);
 }
 
 /** Cast to a non-negative integer, or return $default when the value is not a whole number. */
@@ -83,44 +73,150 @@ function e($value){
 	return htmlspecialchars((string)$value, ENT_QUOTES, "UTF-8");
 }
 
+/*
+:::::::::::::::::::::::::::::::::::::::::::::::::::
+::
+::	Database access
+::
+::	Every query that uses a value from outside the code goes through db_run() with
+::	"?" placeholders, so values are sent to the database separately from the SQL
+::	(prepared statements). Table and column names cannot be placeholders; where they
+::	vary they come from fixed allow-lists below.
+::
+*/
+
+/**
+ * Run a prepared statement. $params fills the "?" placeholders in order.
+ * Returns a mysqli_result for SELECT, true for other statements, false on error (logged).
+ */
+function db_run($link, $sql, array $params = array()){
+	foreach($params as $i => $v){
+		if(is_bool($v)){
+			$params[$i] = (int)$v;
+		} elseif(is_array($v) || is_object($v)){
+			$params[$i] = ""; // never let an array from the request reach the database
+		}
+	}
+	$result = mysqli_execute_query($link, $sql, $params ? array_values($params) : null);
+	if($result === false){
+		error_log("BritBrokers SQL error: " . mysqli_error($link) . " | " . $sql);
+	}
+	return $result;
+}
+
+/**
+ * Prepared statements return numbers as PHP ints/floats; the rest of the code (and the JavaScript
+ * that receives JSON from it) was written for the strings that plain queries return. Keep strings.
+ */
+function db_row_as_strings($row){
+	foreach($row as $k => $v){
+		if($v !== null && !is_string($v)){
+			$row[$k] = (string)$v;
+		}
+	}
+	return $row;
+}
+
+/** All rows as associative arrays (empty array on error or no rows). */
+function db_all($link, $sql, array $params = array()){
+	$result = db_run($link, $sql, $params);
+	if(!($result instanceof mysqli_result)){
+		return array();
+	}
+	return array_map("db_row_as_strings", mysqli_fetch_all($result, MYSQLI_ASSOC));
+}
+
+/** First row, or null. */
+function db_one($link, $sql, array $params = array()){
+	$result = db_run($link, $sql, $params);
+	if(!($result instanceof mysqli_result)){
+		return null;
+	}
+	$row = mysqli_fetch_assoc($result);
+	return $row ? db_row_as_strings($row) : null;
+}
+
+/** The legacy "success|done" / "error|..." status strings used by the AJAX handlers. */
+function db_status($link, $sql, array $params = array()){
+	return db_run($link, $sql, $params) === false ? "error|Database error" : "success|done";
+}
+
+/** Status string helper: true when a "success|..." string (or true) came back. */
+function is_success($status){
+	return $status === true || (is_string($status) && strpos($status, "success") === 0);
+}
+
+/**
+ * Run a static SQL statement (no outside values). Kept for fixed reports such as stats.php.
+ * Anything that includes a value from a visitor, an admin or the database must use db_run().
+ *
+ * $return_results: NR = no return, RC = record count, RS = result set, RA = record array, ST = status
+ */
 function runQuery($link, $SQL, $return_results="NR"){
-	//$return_results can take following parameters
-	// NR = No return
-	// RC = Record count
-	// RS = MYSQL Record Set
-	// RA = Record array
-	// ST = Status
 	$result = mysqli_query($link, $SQL);
 	if($result === false){
 		error_log("BritBrokers SQL error: " . mysqli_error($link));
 	}
 	switch($return_results){
-		case "RC": //Record count
-			return $result ? mysqli_num_rows($result) : 0;
-			break;
-		case "RS": //Record set
+		case "RC":
+			return ($result instanceof mysqli_result) ? mysqli_num_rows($result) : 0;
+		case "RS":
 			return $result;
-			break;		
-		case "RA": //Record Array
-			$rows = array();
-			if($result){
-				while($r = mysqli_fetch_assoc($result)) {
-					$rows[] = $r;
-				}
-			}
-			return $rows;
-			break;
-		case "ST": //Status
-			//echo "#" . $SQL . "#";
-			if ($result === TRUE) {
-				return "success|done";
-			} else {
-				return "error|" .  mysqli_error($link);
-			}
-			break;			
+		case "RA":
+			return ($result instanceof mysqli_result) ? mysqli_fetch_all($result, MYSQLI_ASSOC) : array();
+		case "ST":
+			return $result === false ? "error|Database error" : "success|done";
 		default:
-			break;
+			return null;
 	}
+}
+
+/** Tables and columns the generic form builders below may read. */
+function form_source_allowed($table, array $fields){
+	$allowed = array(
+		"business_types" => array("bt_id", "business_type"),
+		"property_types" => array("pt_id", "property_type_name", "icon"),
+		"districts"      => array("district_id", "district_name"),
+		"cities"         => array("city_id", "district_id", "city_name"),
+		"feature_types"  => array("feature_id", "feature"),
+		"price_ranges"   => array("price_id", "min_max", "type", "price"),
+	);
+	if(!isset($allowed[$table])){
+		return false;
+	}
+	foreach($fields as $f){
+		if($f !== "" && !in_array($f, $allowed[$table], true)){
+			return false;
+		}
+	}
+	return true;
+}
+
+/**
+ * Rows for the form builders. $filter is an array of column => value (all must match),
+ * e.g. array("min_max" => "MIN", "type" => "RENT"). Values are bound, columns allow-listed.
+ */
+function form_source_rows($link, $table, array $fields, $filter){
+	$fields = array_values(array_unique(array_filter($fields, function($f){ return $f !== ""; })));
+	$filter = is_array($filter) ? $filter : array();
+	if(!form_source_allowed($table, array_merge($fields, array_keys($filter)))){
+		error_log("BritBrokers: form source not allowed: " . $table);
+		return array();
+	}
+	$select = $fields ? "`" . implode("`, `", $fields) . "`" : "*";
+	$sql = "SELECT " . $select . " FROM `" . $table . "`";
+	$params = array();
+	if($filter){
+		$where = array();
+		foreach($filter as $col => $val){
+			$where[] = "`" . $col . "` = ?";
+			$params[] = $val;
+		}
+		$sql .= " WHERE " . implode(" AND ", $where);
+	}
+	// Lists keep the order they have always been shown in (recorded by migrations/002)
+	$sql .= " ORDER BY sort_order";
+	return db_all($link, $sql, $params);
 }
 
 
@@ -130,14 +226,8 @@ function getRate($link, $cur){
 	if(!in_array($cur, array("LKR", "GBP"), true)){
 		return "";
 	}
-	$SQL = "SELECT $cur FROM rates";
-	$ret = runQuery($link, $SQL, "RA");
-
-	if($ret){
-		return $ret[0];
-	} else {
-		return "";
-	}
+	$row = db_one($link, "SELECT `" . $cur . "` FROM rates LIMIT 1");
+	return $row ? $row : "";
 }
 
 function exchange($link, $amount, $from, $to){
@@ -152,211 +242,103 @@ function exchange($link, $amount, $from, $to){
 		return 0;
 	}
 
-	if(strtoupper($from)=="USD"){
+	if($from=="USD"){
 		$rate = getRate($link, $to);
 		$rate = $rate[$to];
-
-	} else if(strtoupper($to)=="USD") {
+	} else if($to=="USD") {
 		$from_rate = getRate($link, $from);
-		$from_rate = $from_rate[$from];
-		
-		$rate = 1/$from_rate;		
+		$rate = 1/$from_rate[$from];
 	} else {
 		$from_rate = getRate($link, $from);
-		$from_rate = $from_rate[$from];
-		
 		$to_rate = getRate($link, $to);
-		$to_rate = $to_rate[$to];
-		
-		$rate = $from_rate/$to_rate;
-
+		$rate = $from_rate[$from]/$to_rate[$to];
 	}
-	
-	return $rate * $amount;	
+
+	return $rate * $amount;
 }
 
 
-function fillSelect($link, $table, $text_field="", $label_field="", $value_field="", $filter="", $selected="", $currency=false){
-	$select_fields = "";
-	$suffix="";
-	
-	if(isset($text_field)&&$text_field!=""){
-		$select_fields = $text_field;
-		$suffix=", ";
-	}
-	
-	if(isset($label_field) && $label_field!=""){
-		if($label_field!=$text_field){
-			$select_fields .= $suffix . $label_field;
-			$suffix=", ";
-		}
-	}
+function fillSelect($link, $table, $text_field="", $label_field="", $value_field="", $filter=array(), $selected="", $currency=false){
+	$records = form_source_rows($link, $table, array($text_field, $label_field, $value_field), $filter);
 
-	if(isset($value_field) && $value_field!=""){
-		if($value_field!=$text_field && $value_field!=$label_field){
-			$select_fields .= $suffix . $value_field;
-			$suffix=", ";
-		}
-	}
-	
-	if($select_fields==""){
-		$select_fields = "*";
-	}
-	
-	//Filter
-	if(isset($filter) && $filter!=""){
-		$filter = " WHERE " . $filter;
-	} else {
-		$filter = "";
-	}
-	
-	$query = "SELECT " . $select_fields . " FROM " . $table . $filter;
-	//echo $value_field;
-	//echo $query;
-	$records = runQuery($link, $query, "RA");
-
-	//var_dump($records);
-	
 	$opt="\n";
 	foreach($records as $record){
-		$txt_fld="";
-		$lbl_fld="";
-		$vlu_fld="";
+		$keys = array_keys($record);
 		$sel="";
-		
-		$keys = array_keys($record);		
 
-		
 		//Text field
 		if ($text_field!="" && array_key_exists($text_field,$record)){
-			$txt_fld = htmlentities($record[$text_field], ENT_QUOTES);
+			$txt_value = $record[$text_field];
 		} else {
-			//Text field not specified or not found in the results set
-			$txt_fld = htmlentities($record[$keys[0]], ENT_QUOTES);
+			$txt_value = $record[$keys[0]];
 		}
-
 		if($currency){
-			$txt_fld = nice_number($txt_fld);
+			$txt_value = nice_number($txt_value);
 		}
-			
+		$txt_fld = htmlentities((string)$txt_value, ENT_QUOTES);
+
 		//Label field
 		if ($label_field!="" && array_key_exists($label_field,$record)){
 			$lbl_value = $record[$label_field];
 			if($currency){
-				// Format the number itself, not the whole attribute string (that threw a TypeError on PHP 8).
 				$lbl_value = nice_number($lbl_value);
 			}
 			$lbl_fld = "label='" . htmlentities((string)$lbl_value, ENT_QUOTES) . "'";
 		} else {
-			//Label field not specified or not found in the results set
 			$lbl_fld = "";
 		}
-		
+
 		//Value field
+		$vlu_fld = "";
 		if ($value_field!="" && array_key_exists($value_field,$record)){
-			$vlu_fld = "value='" . htmlentities($record[$value_field], ENT_QUOTES) . "'";
-			if($selected==$record[$value_field]){
+			$vlu_fld = "value='" . htmlentities((string)$record[$value_field], ENT_QUOTES) . "'";
+			if((string)$selected === (string)$record[$value_field]){
 				$sel=" selected";
 			}
-		} else {
-			//Value field not specified or not found in the results set
-			//$vlu_fld = "value='" . htmlentities($record[$keys[0]], ENT_QUOTES) . "'";
-		}		
+		}
 		$opt .= "<option " . $lbl_fld . " " . $vlu_fld . $sel . ">" . $txt_fld . "</option>\n";
 	}
-	
+
 	return $opt;
 }
 
-function getCheckBoxes($link, $name, $class, $table, $text_field="", $value_field="", $filter="", $selected="", $form="", $group_by=4){
-	$select_fields = "";
-	$suffix="";
-	
-	if(isset($text_field)&&$text_field!=""){
-		$select_fields = $text_field;
-		$suffix=", ";
+/** Shared by getCheckBoxes() and getRadioButtons(). */
+function form_is_selected($selected, $value){
+	if($selected === "" || $selected === null){
+		return false;
 	}
-	
-	if(isset($value_field) && $value_field!="" && $value_field!=$text_field ){
-		$select_fields .= $suffix . $value_field;
-		$suffix=", ";
+	if(is_array($selected)){
+		return in_array((string)$value, array_map("strval", $selected), true);
 	}
-	
-	if($select_fields==""){
-		$select_fields = "*";
-	}
-	
-	//Filter
-	if(isset($filter) && $filter!=""){
-		$filter = " WHERE " . $filter;
-	} else {
-		$filter = "";
-	}
-	
-	$query = "SELECT " . $select_fields . " FROM " . $table . $filter;
-	//echo $value_field;
-	//echo $query;
-	$records = runQuery($link, $query, "RA");
+	return (string)$selected === (string)$value;
+}
 
-	
+function getCheckBoxes($link, $name, $class, $table, $text_field="", $value_field="", $filter=array(), $selected="", $form="", $group_by=4){
+	$records = form_source_rows($link, $table, array($text_field, $value_field), $filter);
+
 	$opt="\n";
-	if($records){
-		$recs = sizeof($records);
-		if($recs>0){
-			$elm_grp = round($recs/$group_by);
-		} else {
-			$elm_grp = 0;
-		}
-	} 
+	$elm_grp = $records ? round(count($records)/$group_by) : 0;
+	$frm = ($form!="") ? " form='" . htmlspecialchars($form, ENT_QUOTES) . "' " : "";
 
 	$cnt=0;
 	foreach($records as $record){
-		$txt_fld="";
-		$vlu_fld="";
-		$sel="";
-		
-		$keys = array_keys($record);		
-		
-		//Text field
-		if ($text_field!="" && array_key_exists($text_field,$record)){
-			$txt_fld = htmlentities($record[$text_field], ENT_QUOTES);
-		} else {
-			//Text field not specified or not found in the results set
-			$txt_fld = htmlentities($record[$keys[0]], ENT_QUOTES);
-		}
-
-
-		//Value field
+		$keys = array_keys($record);
+		$txt_fld = htmlentities((string)(($text_field!="" && array_key_exists($text_field,$record)) ? $record[$text_field] : $record[$keys[0]]), ENT_QUOTES);
+		$vlu_fld = "";
+		$sel = "";
 		if ($value_field!="" && array_key_exists($value_field,$record)){
-			$vlu_fld = "value='" . htmlentities($record[$value_field], ENT_QUOTES) . "'";
-			
-			if($selected){
-				if(is_array($selected)){
-					//var_dump($selected);
-					if(in_array($record[$value_field], $selected)){
-						$sel=" checked";
-					}
-				} else if($selected==$record[$value_field]){
-					$sel=" checked";
-				}
+			$vlu_fld = "value='" . htmlentities((string)$record[$value_field], ENT_QUOTES) . "'";
+			if(form_is_selected($selected, $record[$value_field])){
+				$sel=" checked";
 			}
-		} else {
-			//Value field not specified or not found in the results set
-			//$vlu_fld = "value='" . htmlentities($record[$keys[0]], ENT_QUOTES) . "'";
 		}
 
-		if($form!=""){
-			$frm = " form='" . htmlspecialchars($form, ENT_QUOTES) . "' ";
-		} else {
-			$frm="";
-		}
-		
 		if($cnt<=0){
 			$opt .= "<!--column starts --><div class='btn-group-vertical' style='padding:0 10px'>\n";
 		}
-		
-		$opt .= "<label><input name='" . htmlspecialchars($name, ENT_QUOTES) . "' class='btn " . $class . "' type='checkbox' " . $frm . $vlu_fld . $sel . " >&nbsp;" . $txt_fld . "</label>&nbsp;</br>\n";
-		
+
+		$opt .= "<label><input name='" . htmlspecialchars($name, ENT_QUOTES) . "' class='btn " . htmlspecialchars($class, ENT_QUOTES) . "' type='checkbox' " . $frm . $vlu_fld . $sel . " >&nbsp;" . $txt_fld . "</label>&nbsp;</br>\n";
+
 		if($cnt>=$elm_grp){
 			$opt .= "</div><!--column ends -->";
 			$cnt=0;
@@ -364,99 +346,36 @@ function getCheckBoxes($link, $name, $class, $table, $text_field="", $value_fiel
 			$cnt++;
 		}
 	}
-	
+
 	return $opt;
 }
 
-function getRadioButtons($link, $name, $class, $table, $text_field="", $value_field="", $filter="", $selected="", $form="", $group_by=4, $label_class="label"){
-	$select_fields = "";
-	$suffix="";
-	
-	if(isset($text_field)&&$text_field!=""){
-		$select_fields = $text_field;
-		$suffix=", ";
-	}
-	
-	if(isset($value_field) && $value_field!="" && $value_field!=$text_field ){
-		$select_fields .= $suffix . $value_field;
-		$suffix=", ";
-	}
-	
-	if($select_fields==""){
-		$select_fields = "*";
-	}
-	
-	//Filter
-	if(isset($filter) && $filter!=""){
-		$filter = " WHERE " . $filter;
-	} else {
-		$filter = "";
-	}
-	
-	$query = "SELECT " . $select_fields . " FROM " . $table . $filter;
-	//echo $value_field;
-	//echo $query;
-	$records = runQuery($link, $query, "RA");
+function getRadioButtons($link, $name, $class, $table, $text_field="", $value_field="", $filter=array(), $selected="", $form="", $group_by=4, $label_class="label"){
+	$records = form_source_rows($link, $table, array($text_field, $value_field), $filter);
 
-	
 	$opt="\n";
-	if($records){
-		$recs = sizeof($records);
-		if($recs>0){
-			$elm_grp = round($recs/$group_by);
-		} else {
-			$elm_grp = 0;
-		}
-	} 
+	$elm_grp = $records ? round(count($records)/$group_by) : 0;
+	$frm = ($form!="") ? " form='" . htmlspecialchars($form, ENT_QUOTES) . "' " : "";
 
 	$cnt=0;
 	foreach($records as $record){
-		$txt_fld="";
-		$vlu_fld="";
-		$sel="";
-		
-		$keys = array_keys($record);		
-		
-		//Text field
-		if ($text_field!="" && array_key_exists($text_field,$record)){
-			$txt_fld = htmlentities($record[$text_field], ENT_QUOTES);
-		} else {
-			//Text field not specified or not found in the results set
-			$txt_fld = htmlentities($record[$keys[0]], ENT_QUOTES);
-		}
-
-
-		//Value field
+		$keys = array_keys($record);
+		$txt_fld = htmlentities((string)(($text_field!="" && array_key_exists($text_field,$record)) ? $record[$text_field] : $record[$keys[0]]), ENT_QUOTES);
+		$vlu_fld = "";
+		$sel = "";
 		if ($value_field!="" && array_key_exists($value_field,$record)){
-			$vlu_fld = "value='" . htmlentities($record[$value_field], ENT_QUOTES) . "'";
-			
-			if($selected){
-				if(is_array($selected)){
-					//var_dump($selected);
-					if(in_array($record[$value_field], $selected)){
-						$sel=" checked";
-					}
-				} else if($selected==$record[$value_field]){
-					$sel=" checked";
-				}
+			$vlu_fld = "value='" . htmlentities((string)$record[$value_field], ENT_QUOTES) . "'";
+			if(form_is_selected($selected, $record[$value_field])){
+				$sel=" checked";
 			}
-		} else {
-			//Value field not specified or not found in the results set
-			//$vlu_fld = "value='" . htmlentities($record[$keys[0]], ENT_QUOTES) . "'";
 		}
 
-		if($form!=""){
-			$frm = " form='" . htmlspecialchars($form, ENT_QUOTES) . "' ";
-		} else {
-			$frm="";
-		}
-		
 		if($cnt<=0){
 			$opt .= "<!--column starts -->\n";
 		}
 
 		$opt .= "<div class='col-xs-12 col-md-6'><input name='" . htmlspecialchars($name, ENT_QUOTES) . "' class='" . htmlspecialchars($class, ENT_QUOTES) . "' type='radio' " . $frm . $vlu_fld . $sel . " style='width:auto;margin:auto;'> <span class='" . htmlspecialchars($label_class, ENT_QUOTES) . "'>" . $txt_fld . "</span></div>\n";
-		
+
 		if($cnt>=$elm_grp){
 			$opt .= "<!--column ends -->";
 			$cnt=0;
@@ -464,389 +383,239 @@ function getRadioButtons($link, $name, $class, $table, $text_field="", $value_fi
 			$cnt++;
 		}
 	}
-	
+
 	return $opt;
 }
 
+/* ---------------- Properties ---------------- */
+
 function addNewProperty($link, $bt,$pt, $bdrm, $btrm, $district, $city, $street, $keywords, $description, $price, $currency, $term, $featured, $status ){
-	$error = false;
-	//Check and set default values
-	if(!(isset($bt) && $bt!="")){
-		$error=true;
+	if((string)$bt === "" || (string)$pt === "" || to_int($district) <= 0){
+		return "0|Required field missing";
+	}
+	if(to_int($city) <= 0){
+		return "0|Please choose a city";
 	}
 
-	if(!(isset($pt) && $pt!="")){
-		$error=true;
+	$SQL = "INSERT INTO properties (business_type, property_type, bedrooms, bathrooms, district, city, street, lat, lon, keywords, description, price, currency, term, featured, status)
+			VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?)";
+	$ok = db_run($link, $SQL, array(
+		$bt, $pt, to_int($bdrm), to_int($btrm), to_int($district), to_int($city),
+		(string)$street, (string)$keywords, (string)$description,
+		is_numeric($price) ? $price : 0, (string)$currency, (string)$term, (string)$featured, (string)$status,
+	));
+
+	if($ok){
+		return mysqli_insert_id($link) . "|Record successfully added";
 	}
-	
-	if(!(isset($district) && $district!="")){
-		$error=true;
-	}
-	
-	if($error){
-		return "0|Required field missing";
-	} else {
-		$SQL = "INSERT INTO properties (property_id, business_type, property_type, bedrooms, bathrooms, district, city, street, lat, lon, keywords, description, price, currency, term, featured, status) VALUES (";
-		$SQL .= "NULL,";
-		$SQL .= "'" . q($link, $bt) . "',";
-		$SQL .= "'" . q($link, $pt) . "',";
-		$SQL .= "'" . q($link, $bdrm) . "',";
-		$SQL .= "'" . q($link, $btrm) . "',"; 
-		$SQL .= "'" . q($link, $district) . "',"; 
-		$SQL .= "'" . q($link, $city) . "',";
-		$SQL .= "'" . mysqli_real_escape_string($link , $street ) . "',";
-		$SQL .= "'0',"; //Latitude
-		$SQL .= "'0',"; //Longitude
-		$SQL .= "'" . mysqli_real_escape_string($link , $keywords ) . "',";
-		$SQL .= "'" . mysqli_real_escape_string($link , $description ) . "',";
-		$SQL .= "'" . q($link, $price) . "',";
-		$SQL .= "'" . q($link, $currency) . "',";
-		$SQL .= "'" . q($link, $term) . "',";
-		$SQL .= "'" . q($link, $featured) . "',";
-		$SQL .= "'" . q($link, $status) . "'";
-		$SQL .= ");";
-		
-		$ret = runQuery($link, $SQL, "RS");
-		
-		if($ret){ //Success
-			$ret = runQuery($link, "SELECT LAST_INSERT_ID() AS id", "RA");
-			return $ret[0]['id'] . "|Record successfully added";
-		} else {
-			echo $SQL;
-			return "0|DB Operation failed";
-		}
-		
-		//SELECT LAST_INSERT_ID()
-		//$records = runQuery($link, $query, "RA");
-		//return "1|ela";
-	}
+	return "0|DB Operation failed";
 }
 
 function addNewFeature($link, $pid, $fid ){
-	$SQL = "INSERT INTO features (property_id, feature_id, feature_spec) VALUES (";
-	$SQL .= "'" . q($link, $pid) . "',";
-	$SQL .= "'" . q($link, $fid) . "',";
-	$SQL .= "'');";
-	
-	return runQuery($link, $SQL, "ST");
+	// Adding a feature the property already has is not an error, and does not add a duplicate row
+	return db_status($link, "INSERT INTO features (property_id, feature_id, feature_spec)
+		SELECT ?, ?, '' FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM features WHERE property_id = ? AND feature_id = ?)",
+		array(to_int($pid), to_int($fid), to_int($pid), to_int($fid)));
 }
 
 function addNewImage($link, $pid, $img_id, $img_url,$img_type,$featured="N" ){
-	$SQL = "INSERT INTO images (img_id, property_id, img_url, img_type,featured) VALUES (";
-	$SQL .= "NULL,"; // auto-increment ('' is rejected when the database runs in strict mode)
-	$SQL .= "'" . q($link, $pid) . "',";
-	$SQL .= "'" . q($link, $img_url) . "',";
-	$SQL .= "'" . q($link, $img_type) . "',";
-	$SQL .= "'" . q($link, $featured) . "');";
-	
-	return runQuery($link, $SQL, "ST");
+	return db_status($link, "INSERT INTO images (property_id, img_url, img_type, featured) VALUES (?, ?, ?, ?)",
+		array(to_int($pid), (string)$img_url, (string)$img_type, (string)$featured));
 }
 
 function updateImage($link, $pid, $img_id, $img_url, $img_type, $featured="N"){
-	//echo "Data received: " . $pid ."|" . $img_id ."|" .  $img_url ."|" .  $img_type;
 	$ret1 = deleteImages($link, $pid, $img_id);
 	$ret1 .= addNewImage($link, $pid, $img_id, $img_url,$img_type, $featured );
-	
 	return $ret1;
+}
+
+/**
+ * Search filters shared by getProperties() and getPropertyIDs().
+ * Fills $where (SQL with "?" placeholders) and $params (the values), in the same order.
+ * $price_col is "p.aprice" (price converted to LKR, public search) or "p.price" (admin search).
+ */
+function property_filters(&$where, &$params, $f, $price_col){
+	$checks = array(
+		"bt"       => array("p.business_type = ?", "str"),
+		"pt"       => array("p.property_type = ?", "str"),
+		"min_bdrm" => array("p.bedrooms >= ?", "int"),
+		"max_bdrm" => array("p.bedrooms <= ?", "int"),
+		"min_btrm" => array("p.bathrooms >= ?", "int"),
+		"max_btrm" => array("p.bathrooms <= ?", "int"),
+		"min_price"=> array($price_col . " >= ?", "num"),
+		"max_price"=> array($price_col . " <= ?", "num"),
+		"district" => array("p.district = ?", "int"),
+		"city"     => array("p.city = ?", "int"),
+		"featured" => array("p.featured = ?", "str"),
+	);
+	foreach($checks as $key => $check){
+		$v = $f[$key] ?? "";
+		if($v === "" || $v === null){
+			continue;
+		}
+		if($check[1] === "int"){
+			$v = to_int($v, null);
+			if($v === null){ continue; }
+		} elseif($check[1] === "num"){
+			if(!is_numeric($v)){ continue; }
+		} else {
+			$v = (string)$v;
+		}
+		$where[] = $check[0];
+		$params[] = $v;
+	}
+
+	// Each requested feature must be present. (The old query joined the features table once and
+	// required one row to match every feature, so searching by two or more features found nothing.)
+	foreach(to_int_list($f['features'] ?? array()) as $feature){
+		$where[] = "EXISTS (SELECT 1 FROM features f WHERE f.property_id = p.property_id AND f.feature_id = ?)";
+		$params[] = $feature;
+	}
 }
 
 function getProperties($link, $bt,$pt, $features, $min_bdrm, $max_bdrm, $min_btrm, $max_btrm, $min_price, $max_price, $keywords, $district, $city, $featured, $sort_by, $sort_order, $start_from=0, $max_rec='', $count_only=false){
 
+	if($count_only && $max_rec){
+		return $max_rec;
+	}
+
+	$where = array("p.district = d.district_id", "p.city = c.city_id", "p.property_type = pt.pt_id");
+	$params = array();
+	property_filters($where, $params, compact("bt", "pt", "min_bdrm", "max_bdrm", "min_btrm", "max_btrm", "min_price", "max_price", "district", "city", "featured", "features"), "p.aprice");
+
+	if((string)$keywords !== ""){
+		$where[] = "(p.keywords LIKE ? OR p.description LIKE ?)";
+		$like = "%" . addcslashes((string)$keywords, "%_\\") . "%";
+		$params[] = $like;
+		$params[] = $like;
+	}
+
+	$from = " FROM property_search p, property_types pt, districts d, cities c WHERE " . implode(" AND ", $where);
+
 	if($count_only){
-		if($max_rec){
-			return $max_rec;
-		} else {
-			$SQL = "SELECT COUNT( p.property_id ) as record_count FROM property_search p, property_types pt, districts d, cities c";
-		}
-	} else {
-		$SQL = "SELECT * FROM property_search p, property_types pt, districts d, cities c";
+		$row = db_one($link, "SELECT COUNT(p.property_id) AS record_count" . $from, $params);
+		return $row ? $row['record_count'] : 0;
 	}
 
-	$sep = "";
-	$features = to_int_list($features);
-	if(!empty($features)){
-		$SQL .= ", features f WHERE ";
-		$SQL .= " f.property_id=p.property_id";
-		$sep = " AND ";
-		foreach($features as $feature){
-			$SQL .= $sep . " f.feature_id =" . $feature;
-		}
-	} else {
-		$SQL .= " WHERE ";
-	}
-
-	$SQL .= $sep . " p.district=d.district_id";
-	$sep = " AND ";
-	$SQL .= $sep . " p.city=c.city_id";
-	$SQL .= $sep . " p.property_type=pt.pt_id";
-	//$SQL .= " AND f.feature_id=ft.feature_id";
-	
-	//Check and set default values
-	if(isset($bt) && $bt!=""){	//Check for business type
-		$SQL .= $sep . " p.business_type='" . q($link, $bt) . "'";
-	}
-	
-	if(isset($pt) && $pt!=""){	//Check for property type
-		$SQL .= $sep . " p.property_type='" . q($link, $pt) . "'";
-	}
-
-	if(isset($min_bdrm) && $min_bdrm!=""){	//Check for min bedrooms
-		$SQL .= $sep . " p.bedrooms>='" . q($link, $min_bdrm) . "'";
-	}
-
-	if(isset($max_bdrm) && $max_bdrm!=""){	//Check for max bedrooms
-		$SQL .= $sep . " p.bedrooms<='" . q($link, $max_bdrm) . "'";
-	}
-
-	if(isset($min_btrm) && $min_btrm!=""){	//Check for min bathrooms
-		$SQL .= $sep . " p.bathrooms>='" . q($link, $min_btrm) . "'";
-	}
-
-	if(isset($max_btrm) && $max_btrm!=""){	//Check for max bathrooms
-		$SQL .= $sep . " p.bathrooms<='" . q($link, $max_btrm) . "'";
-	}
-
-	if(isset($min_price) && $min_price!=""){	//Check for min price
-		$SQL .= $sep . " aprice>='" . q($link, $min_price) . "'";
-	}
-
-	if(isset($max_price) && $max_price!=""){	//Check for max price
-		$SQL .= $sep . " aprice<='" . q($link, $max_price) . "'";
-	}
-	
-	if(isset($district) && $district!=""){	//Check for district
-		$SQL .= $sep . " p.district='" . q($link, $district) . "'";
-	}
-
-	if(isset($city) && $city!=""){	//Check for city
-		$SQL .= $sep . " p.city='" . q($link, $city) . "'";
-	}
-
-	if(isset($featured) && $featured!=""){	//Check for featured properties
-		$SQL .= $sep . " p.featured='" . q($link, $featured) . "'";
-	}
-
-	if(isset($keywords) && $keywords!=""){	//Check for keywords
-		$SQL .= $sep . " (p.keywords LIKE '%" . q($link, $keywords) . "%'";
-		$SQL .= " OR p.description LIKE '%" . q($link, $keywords) . "%')";
-	}
-	
-	if(isset($sort_by) && $sort_by!=""){	//sorting (column and direction from an allow-list)
+	$SQL = "SELECT *" . $from;
+	if((string)$sort_by !== ""){
 		list($sort_col, $sort_dir) = safe_sort($sort_by, $sort_order);
-		$SQL .= " ORDER BY p." . $sort_col . " " . $sort_dir;
-		$SQL .= ", p.property_id DESC";
+		$SQL .= " ORDER BY p." . $sort_col . " " . $sort_dir . ", p.property_id DESC";
 	}
-
 	if($max_rec!=''){
 		$SQL .= " LIMIT " . to_int($start_from) . ", " . to_int($max_rec, 10);
 	}
-
-
-	if($count_only){
-		$ret = runQuery($link, $SQL, "RA");
-		return $ret ? $ret[0]['record_count'] : 0;
-	} else {
-		return runQuery($link, $SQL, "RA");
-	}
+	return db_all($link, $SQL, $params);
 }
 
 function getPropertyIDs($link,$id='', $bt='',$pt='', $min_bdrm='', $max_bdrm='', $min_btrm='', $max_btrm='', $min_price='', $max_price='', $district='', $city='', $keywords='', $features='', $featured='', $sort_by='', $sort_order='', $max_rec='', $older='' ){
 	if(isset($id) && $id!=""){
 		return json_encode(to_int($id));
-	} else {
-		$SQL = "SELECT p.property_id FROM properties p";
-
-		$sep = "";
-		$features = to_int_list($features);
-		if(!empty($features)){
-			$SQL .= ", features f WHERE ";
-			$SQL .= " f.property_id=p.property_id";
-			$sep = " AND ";			
-			foreach($features as $feature){
-				$SQL .= $sep . " f.feature_id =" . $feature;
-			}
-		} else {
-			$SQL .= " WHERE 1=1";
-			$sep = " AND ";
-		}
-		
-		//Check and set default values
-		if(isset($bt) && $bt!=""){	//Check for business type
-			$SQL .= $sep . " p.business_type='" . q($link, $bt) . "'";
-			$sep = " AND ";
-		}
-		
-		if(isset($pt) && $pt!=""){	//Check for property type
-			$SQL .= $sep . " p.property_type='" . q($link, $pt) . "'";
-			$sep = " AND ";
-		}
-
-		if(isset($min_bdrm) && $min_bdrm!=""){	//Check for minimum bedrooms
-			$SQL .= $sep . " p.bedrooms>='" . q($link, $min_bdrm) . "'";
-			$sep = " AND ";
-		}
-		
-		if(isset($max_bdrm) && $max_bdrm!=""){	//Check for maximum bedrooms
-			$SQL .= $sep . " p.bedrooms<='" . q($link, $max_bdrm) . "'";
-			$sep = " AND ";
-		}
-
-		if(isset($min_btrm) && $min_btrm!=""){	//Check for minimum bathrooms
-			$SQL .= $sep . " p.bathrooms>='" . q($link, $min_btrm) . "'";
-			$sep = " AND ";
-		}
-		
-		if(isset($max_btrm) && $max_btrm!=""){	//Check for maximum bathrooms
-			$SQL .= $sep . " p.bathrooms<='" . q($link, $max_btrm) . "'";
-			$sep = " AND ";
-		}
-
-		if(isset($min_price) && $min_price!=""){	//Check for minimum price
-			$SQL .= $sep . " p.price>='" . q($link, $min_price) . "'";
-			$sep = " AND ";
-		}
-		
-		if(isset($max_price) && $max_price!=""){	//Check for maximum price
-			$SQL .= $sep . " p.price<='" . q($link, $max_price) . "'";
-			$sep = " AND ";
-		}
-
-		if(isset($district) && $district!=""){	//Check for district
-			$SQL .= $sep . " p.district='" . q($link, $district) . "'";
-			$sep = " AND ";
-		}
-
-		if(isset($city) && $city!=""){	//Check for city
-			$SQL .= $sep . " p.city='" . q($link, $city) . "'";
-			$sep = " AND ";
-		}
-
-		if(isset($featured) && $featured!=""){	//Check for featured properties
-			$SQL .= $sep . " p.featured='" . q($link, $featured) . "'";
-			$sep = " AND ";
-		}
-		
-		if(isset($keywords) && $keywords!=""){	//Check for keywords
-			$SQL .= $sep . " MATCH(keywords, description, street) AGAINST ('" . q($link, $keywords) . "')";
-			$sep = " AND ";
-		}
-
-		if(isset($older) && $older!=""){	//Check for older properties
-			$SQL .= $sep . " time_submitted< DATE_ADD(CURDATE(), INTERVAL -" . to_int($older) . " MONTH)";
-			$sep = " AND ";
-		}
-
-		if(isset($sort_by) && $sort_by!=""){	//Check for sort by (allow-listed)
-			list($sort_col, $sort_dir) = safe_sort($sort_by, $sort_order);
-			$SQL .= " ORDER BY p." . $sort_col . " " . $sort_dir;
-		}
-		
-		if($max_rec!=''){
-			$SQL .= " LIMIT " . to_int($max_rec, 10);
-		}
-
-		return runQuery($link, $SQL, "RA");
 	}
-}
 
-function getOldProperties($link, $months, $count_only=false, $max_rec=''){
-	if($count_only){
-		if($max_rec){
-			return $max_rec;
-		} else {
-			$SQL = "SELECT COUNT( property_id ) as record_count FROM property_search ";
-		}
-	} else {
-		$SQL = "SELECT * FROM property_search ";
+	$where = array("1=1");
+	$params = array();
+	property_filters($where, $params, compact("bt", "pt", "min_bdrm", "max_bdrm", "min_btrm", "max_btrm", "min_price", "max_price", "district", "city", "featured", "features"), "p.price");
+
+	if((string)$keywords !== ""){
+		$where[] = "MATCH(p.street, p.keywords, p.description) AGAINST (?)";
+		$params[] = (string)$keywords;
 	}
-	
-	$SQL .= " WHERE time_submitted< DATE_ADD(CURDATE(), INTERVAL -" . to_int($months) . " MONTH)"; 
 
+	if((string)$older !== ""){
+		$where[] = "p.time_submitted < DATE_ADD(CURDATE(), INTERVAL -? MONTH)";
+		$params[] = to_int($older);
+	}
+
+	$SQL = "SELECT p.property_id FROM properties p WHERE " . implode(" AND ", $where);
+	if((string)$sort_by !== ""){
+		list($sort_col, $sort_dir) = safe_sort($sort_by, $sort_order);
+		$SQL .= " ORDER BY p." . $sort_col . " " . $sort_dir . ", p.property_id DESC";
+	} else {
+		$SQL .= " ORDER BY p.property_id DESC"; // newest first
+	}
 	if($max_rec!=''){
 		$SQL .= " LIMIT " . to_int($max_rec, 10);
 	}
-	
-	//echo "<span>$SQL</span>";
-	return runQuery($link, $SQL, "RA");
+	return db_all($link, $SQL, $params);
+}
+
+function getOldProperties($link, $months, $count_only=false, $max_rec=''){
+	if($count_only && $max_rec){
+		return $max_rec;
+	}
+	$select = $count_only ? "SELECT COUNT(property_id) AS record_count" : "SELECT *";
+	$SQL = $select . " FROM property_search WHERE time_submitted < DATE_ADD(CURDATE(), INTERVAL -? MONTH)";
+	if($max_rec!=''){
+		$SQL .= " LIMIT " . to_int($max_rec, 10);
+	}
+	return db_all($link, $SQL, array(to_int($months)));
 }
 
 function getPropertyByID($link, $pid){
-	$SQL = "SELECT * FROM properties p, business_types bt, property_types pt, districts d, cities c ";
-	$SQL .= " WHERE property_id='" . q($link, $pid) . "'";
-	$SQL .= " AND p.district=d.district_id";
-	$SQL .= " AND p.city=c.city_id";
-	$SQL .= " AND p.property_type=pt.pt_id";
-	$SQL .= " AND p.business_type=bt.bt_id";
-	$SQL .= " LIMIT 1;";	
-	return runQuery($link, $SQL, "RA");
+	$SQL = "SELECT * FROM properties p, business_types bt, property_types pt, districts d, cities c
+			WHERE p.property_id = ?
+			AND p.district = d.district_id
+			AND p.city = c.city_id
+			AND p.property_type = pt.pt_id
+			AND p.business_type = bt.bt_id
+			LIMIT 1";
+	return db_all($link, $SQL, array(to_int($pid)));
 }
 
 function getPropertyByDistrictID($link, $did, $max_rec){
-	$SQL = "SELECT * FROM properties p, business_types bt, property_types pt, districts d, cities c ";
-	$SQL .= " WHERE p.district='" . q($link, $did) . "'";
-	$SQL .= " AND p.city=c.city_id";
-	$SQL .= " AND p.district=d.district_id";
-	$SQL .= " AND p.property_type=pt.pt_id";
-	$SQL .= " AND p.business_type=bt.bt_id";
-	$SQL .= " LIMIT " . to_int($max_rec, 10) . ";";
-	
-	//echo $SQL;
-	return runQuery($link, $SQL, "RA");
+	$SQL = "SELECT * FROM properties p, business_types bt, property_types pt, districts d, cities c
+			WHERE p.district = ?
+			AND p.city = c.city_id
+			AND p.district = d.district_id
+			AND p.property_type = pt.pt_id
+			AND p.business_type = bt.bt_id
+			LIMIT " . to_int($max_rec, 10);
+	return db_all($link, $SQL, array(to_int($did)));
 }
 
 function getFeaturesByPropertyID($link, $pid){
-	$SQL = "SELECT * FROM features f, feature_types ft";
-	$SQL .= " WHERE f.property_id='" . q($link, $pid) . "'";
-	$SQL .= " AND f.feature_id=ft.feature_id";
-	//echo $SQL;
-	return runQuery($link, $SQL, "RA");
+	return db_all($link, "SELECT * FROM features f, feature_types ft WHERE f.property_id = ? AND f.feature_id = ft.feature_id ORDER BY ft.sort_order", array(to_int($pid)));
 }
 
 function getPropertyImages($link,$pt_id, $img_count=99, $type=""){
-	if(isset($type) && $type!=""){
-		$type_filter = " AND img_type='" . q($link, $type) . "'";
-	} else {
-		$type_filter ="";
+	$SQL = "SELECT * FROM images WHERE property_id = ?";
+	$params = array(to_int($pt_id));
+	if((string)$type !== ""){
+		$SQL .= " AND img_type = ?";
+		$params[] = (string)$type;
 	}
-	
-	$SQL = "SELECT * FROM images WHERE property_id='" . q($link, $pt_id) . "' " . $type_filter . " ORDER BY images.featured DESC  LIMIT " . to_int($img_count, 99);
-	//echo $SQL;
-	return runQuery($link, $SQL, "RA");
+	// Featured images first, then in upload order
+	$SQL .= " ORDER BY images.featured DESC, images.img_id ASC LIMIT " . to_int($img_count, 99);
+	return db_all($link, $SQL, $params);
 }
 
 function getImageByID($link,$pid, $img_id){
-	$SQL = "SELECT * FROM images WHERE property_id='" . q($link, $pid) . "' AND img_id='" . q($link, $img_id) . "' LIMIT 1";
-	return runQuery($link, $SQL, "RA");
+	return db_all($link, "SELECT * FROM images WHERE property_id = ? AND img_id = ? LIMIT 1", array(to_int($pid), to_int($img_id)));
 }
 
 function getFeatureByID($link,$fid){
-	$SQL = "SELECT * FROM feature_types WHERE feature_id='" . q($link, $fid) . "'";
-	$feature = runQuery($link, $SQL, "RA");
-	return $feature[0];
+	return db_one($link, "SELECT * FROM feature_types WHERE feature_id = ?", array(to_int($fid)));
 }
 
 function getPropertyTypeByID($link,$ptid){
-	$SQL = "SELECT * FROM property_types WHERE pt_id='" . q($link, $ptid) . "'";
-	$pts = runQuery($link, $SQL, "RA");
-	return $pts[0]['property_type_name'];
+	$row = db_one($link, "SELECT property_type_name FROM property_types WHERE pt_id = ?", array((string)$ptid));
+	return $row ? $row['property_type_name'] : "";
 }
 
 function getBusinessTypeByID($link,$btid){
-	$SQL = "SELECT * FROM business_types WHERE bt_id='" . q($link, $btid) . "'";
-	$pts = runQuery($link, $SQL, "RA");
-	return $pts[0]['business_type'];
+	$row = db_one($link, "SELECT business_type FROM business_types WHERE bt_id = ?", array((string)$btid));
+	return $row ? $row['business_type'] : "";
 }
 
 function getDistrictByID($link,$did){
-	$SQL = "SELECT * FROM districts WHERE district_id='" . q($link, $did) . "'";
-	$pts = runQuery($link, $SQL, "RA");
-	return $pts[0]['district_name'];
+	$row = db_one($link, "SELECT district_name FROM districts WHERE district_id = ?", array(to_int($did)));
+	return $row ? $row['district_name'] : "";
 }
 
 function getCityByID($link,$cid){
-	$SQL = "SELECT * FROM cities WHERE city_id='" . q($link, $cid) . "'";
-	$pts = runQuery($link, $SQL, "RA");
-	return $pts[0]['city_name'];
+	$row = db_one($link, "SELECT city_name FROM cities WHERE city_id = ?", array(to_int($cid)));
+	return $row ? $row['city_name'] : "";
 }
 
 /**
@@ -867,260 +636,131 @@ function delete_upload_file($img_url){
 }
 
 function setFeaturedImage($link, $pid, $img_id){
-	//Reset current featured images
-	$SQL = "UPDATE images SET featured='' WHERE property_id='" . q($link, $pid) . "'";
-	$status = runQuery($link, $SQL, "ST");
-	$ret = explode("|",$status);
-	
-	if($ret[0]=="success"){
-		//Set new featured images
-		$SQL = "UPDATE images SET featured='Y' WHERE property_id='" . q($link, $pid) . "'";
-		$img_id = to_int($img_id);
-		$SQL .= " AND (img_id='" . q($link, $img_id) . "'";
-		$img_id++;
-		$SQL .= " OR img_id='" . q($link, $img_id) . "')";
-		$status = runQuery($link, $SQL, "ST");
-		//echo $SQL;
-		return $status;		
-	} else {
-		return "error|Featured image resetting failed!";
+	$pid = to_int($pid);
+	$img_id = to_int($img_id);
+	mysqli_begin_transaction($link);
+	// Reset current featured images, then feature the chosen image and its thumbnail (the next ID)
+	$ok = db_run($link, "UPDATE images SET featured = '' WHERE property_id = ?", array($pid))
+		&& db_run($link, "UPDATE images SET featured = 'Y' WHERE property_id = ? AND (img_id = ? OR img_id = ?)", array($pid, $img_id, $img_id + 1));
+	if($ok){
+		mysqli_commit($link);
+		return "success|done";
 	}
+	mysqli_rollback($link);
+	return "error|Featured image resetting failed!";
 }
 
 function deleteImages($link, $pid, $img_id){
-	
 	$img = getImageByID($link,$pid, $img_id);
-	$status="";
-	
-	if($img){
-		$image=$img[0];
-		//Delete physical image file
-		$file_error = delete_upload_file($image['img_url']) ? 'success' : 'error';
-
-		//Delete DB record
-		$SQL = "DELETE FROM images WHERE property_id='" . q($link, $pid) . "'";
-		$SQL .= " AND img_id='" . q($link, $img_id) . "'";
-		$status = runQuery($link, $SQL, "ST");
-		
-		if($file_error=='error'){
-			return "error";
-		} else {
-			//echo "DB record delete status: " . $status;
-			return $status;
-		}
-	} else {
+	if(!$img){
 		return "error";
 	}
+	$file_ok = delete_upload_file($img[0]['img_url']);
+	$status = db_status($link, "DELETE FROM images WHERE property_id = ? AND img_id = ?", array(to_int($pid), to_int($img_id)));
+	return $file_ok ? $status : "error";
 }
 
 function deleteAllImages($link, $pid){
-	$imgs = getPropertyImages($link,$pid, $img_count=99, $type="");
-	$status="";
-	$file_error='';
-	
-	if($imgs){
-		foreach($imgs as $image){
-			//var_dump($image);
-			$status .= "<br>Deleting file: " . e($image['img_url']) . "...";
-			
-			if(delete_upload_file($image['img_url'])){
-				$status .= "'done'<br>";
-				$file_error='success';
-			} else {
-				$status .= "'error'<br>";
-				$file_error='error';
-			}
-
-			//Delete DB records
-			$SQL = "DELETE FROM images WHERE property_id='" . q($link, $pid) . "'";
-			$status .= "<br>Deleting DB records for property: " . e($pid) . "...";
-			$status .= runQuery($link, $SQL, "ST");
-		}
-		if($file_error=='success' && $status){
-			return "success|" . $status;
-		} else {
-			//echo "DB record delete status: " . $status;
-			return "error|" . $status;
-		}		
-	} else {
-		return "error|" . $status;
+	$imgs = getPropertyImages($link,$pid, 99, "");
+	if(!$imgs){
+		return "error|";
 	}
+	$status = "";
+	$all_files_ok = true;
+	foreach($imgs as $image){
+		$status .= "<br>Deleting file: " . e($image['img_url']) . "...";
+		if(delete_upload_file($image['img_url'])){
+			$status .= "'done'<br>";
+		} else {
+			$status .= "'error'<br>";
+			$all_files_ok = false;
+		}
+	}
+	$status .= "<br>Deleting DB records for property: " . e($pid) . "...";
+	$db = db_status($link, "DELETE FROM images WHERE property_id = ?", array(to_int($pid)));
+	$status .= $db;
+
+	return ($all_files_ok && is_success($db)) ? "success|" . $status : "error|" . $status;
 }
 
 function deleteProperty($link, $pid){
-	//Deleting images
-	$SQL = "SELECT img_url FROM images WHERE property_id='" . q($link, $pid) . "';";
-	$images =  runQuery($link, $SQL, "RA");
+	$pid = to_int($pid);
+	$images = db_all($link, "SELECT img_url FROM images WHERE property_id = ?", array($pid));
 
-	$file_error='';
-	$images_error='';
-	$fatures_error='';
-	$property_error='';
-	$del_error = false;
-	
-	$status="{{'deleted_images': {";
-	$sep="";
-	
-	if($images){
-		foreach($images as $image){
-			if(delete_upload_file($image['img_url'])){
-				$status .= $sep . "'success': '" . $image['img_url'] . "'";
-				$file_error='success';
-			} else {
-				$status .= $sep . "'error': '" . $image['img_url'] . "'";
-				$file_error='error';
-				$del_error = true;
-			}
-			$sep=",";
+	$files_ok = true;
+	foreach($images as $image){
+		if(!delete_upload_file($image['img_url'])){
+			$files_ok = false;
 		}
 	}
-	
-	$status .= "}}";
 
-	$status .= ",{'image_record':";
-	$SQL = "DELETE FROM images WHERE property_id='" . q($link, $pid) . "';";	
-	$images_error = runQuery($link, $SQL, "ST");
-	$status .= "'" . $images_error . "'";
-	$status .= "}";
-
-	$status .= ",{'features':";	
-	$SQL = "DELETE FROM features WHERE property_id='" . q($link, $pid) . "';";
-	$fatures_error = runQuery($link, $SQL, "ST");
-	$status .= "'" . $fatures_error . "'";
-	$status .= "}";
-	
-	$status .= ",{'property':";	
-	$SQL = "DELETE FROM properties WHERE property_id='" . q($link, $pid) . "';";
-	$property_error = runQuery($link, $SQL, "ST");	
-	$status .= "'" . $property_error . "'";
-	$status .= "}";
-	
-	$status .= "}";
-	
-	if(!$del_error){
-		return true;
+	// Remove the records together, so a failure part-way cannot leave half a property behind
+	mysqli_begin_transaction($link);
+	$ok = db_run($link, "DELETE FROM images WHERE property_id = ?", array($pid))
+		&& db_run($link, "DELETE FROM features WHERE property_id = ?", array($pid))
+		&& db_run($link, "DELETE FROM properties WHERE property_id = ?", array($pid));
+	if($ok){
+		mysqli_commit($link);
 	} else {
-		//echo "<!-- " . $status . "-->";
-		return false;
+		mysqli_rollback($link);
 	}
+
+	return $ok && $files_ok;
 }
 
 function updateProperty($link, $pid, $bt='',$pt='', $bdrm='', $btrm='', $district='', $city='', $street='', $keywords='', $description='', $price='', $currency='', $term='', $featured='', $features='', $status='' ){
-
-	if((isset($pid) && $pid!="")){	
-		$flds=array();
-		
-		//Check and set default values
-		if((isset($bt) && $bt!="")){
-			$flds["business_type"] = $bt;
-		}
-
-		if((isset($pt) && $pt!="")){
-			$flds["property_type"] = $pt;
-		}
-		
-		if((isset($bdrm) && $bdrm!="")){
-			$flds["bedrooms"] = $bdrm;
-		}
-		
-		if((isset($btrm) && $btrm!="")){
-			$flds["bathrooms"] = $btrm;
-		}
-		
-		if((isset($district) && $district!="")){
-			$flds["district"] = $district;
-		}
-
-		if((isset($city) && $city!="")){
-			$flds["city"] = $city;
-		}
-
-		if((isset($street) && $street!="")){
-			$flds["street"] = $street;
-		}
-
-		if((isset($keywords) && $keywords!="")){
-			$flds["keywords"] = $keywords;
-		}
-
-		if((isset($description) && $description!="")){
-			$flds["description"] = $description;
-		}
-
-		if((isset($price) && $price!="")){
-			$flds["price"] = $price;
-		}
-
-		if((isset($currency) && $currency!="")){
-			$flds["currency"] = $currency;
-		}
-
-		if((isset($term) && $term!="")){
-			$flds["term"] = $term;
-		}
-		
-		if((isset($featured) && $featured!="")){
-			$flds["featured"] = $featured;
-		}		
-
-		if((isset($status) && $status!="")){
-			$flds["status"] = $status;
-		}	
-		
-		$SQL = "UPDATE properties SET ";
-		$sep="";
-		
-		foreach($flds as $key=>$value){
-			$SQL .= $sep . $key . "='" . q($link, $value) . "'";
-			$sep=", ";
-		}
-		
-		$pid = to_int($pid);
-		$SQL .= " WHERE property_id=" . $pid;
-		
-		$ret_val="success";
-		//echo "<!--" . $SQL . "-->";
-		$ret = runQuery($link, $SQL, "ST");
-		$ret = explode("|",$ret);
-		if(!$ret[0]=="success"){
-			$ret_val="error";
-		}
-		
-		//Update features
-		$SQL = "DELETE FROM features WHERE property_id=" . $pid;
-		//echo $SQL;
-		$ret = runQuery($link, $SQL, "ST");
-		$ret = explode("|",$ret);
-		if(!$ret[0]=="success"){
-			$ret_val="error";
-		}
-		
-		if(isset($features) && $features!==""){
-			foreach(to_int_list($features) as $feature){
-				$ret = addNewFeature($link,$pid,$feature);
-				$ret = explode("|",$ret);
-				if(!$ret[0]=="success"){
-					$ret_val="error";
-				}			
-			}
-		}
-		
-		return $ret_val;
-	} else {
+	$pid = to_int($pid);
+	if($pid <= 0){
 		return "error";
 	}
+
+	// Only fields that were sent are changed. Column names come from this fixed list.
+	$values = array(
+		"business_type" => $bt, "property_type" => $pt, "bedrooms" => $bdrm, "bathrooms" => $btrm,
+		"district" => $district, "city" => $city, "street" => $street, "keywords" => $keywords,
+		"description" => $description, "price" => $price, "currency" => $currency, "term" => $term,
+		"featured" => $featured, "status" => $status,
+	);
+	$int_cols = array("bedrooms", "bathrooms", "district", "city");
+	$set = array();
+	$params = array();
+	foreach($values as $col => $value){
+		if($value === null || $value === ""){
+			continue;
+		}
+		$set[] = "`" . $col . "` = ?";
+		$params[] = in_array($col, $int_cols, true) ? to_int($value) : (string)$value;
+	}
+
+	mysqli_begin_transaction($link);
+	$ok = true;
+	if($set){
+		$params[] = $pid;
+		$ok = db_run($link, "UPDATE properties SET " . implode(", ", $set) . " WHERE property_id = ?", $params) !== false;
+	}
+
+	// Replace the feature list
+	$ok = $ok && db_run($link, "DELETE FROM features WHERE property_id = ?", array($pid)) !== false;
+	if($ok && isset($features) && $features!==""){
+		foreach(to_int_list($features) as $feature){
+			if(!is_success(addNewFeature($link, $pid, $feature))){
+				$ok = false;
+				break;
+			}
+		}
+	}
+
+	if($ok){
+		mysqli_commit($link);
+		return "success";
+	}
+	mysqli_rollback($link);
+	return "error";
 }
 // encrypt()/decrypt() used mcrypt, which was removed in PHP 7.2. They were unused and have been deleted.
-// authenticate() now lives in auth.php and checks a password hash from the environment config.
 
 function fillCities($link, $district="", $selected=""){
-	//echo "#####" . $district;
-	if(isset($district) && $district!==""){
-		$filter = "district_id='" . q($link, $district) . "'";
-	} else {
-		$filter="";
-	}
-	
+	$filter = ((string)$district !== "") ? array("district_id" => to_int($district)) : array();
 	return fillSelect($link, "cities", "city_name", "city_name", "city_id", $filter, $selected);
 }
 
