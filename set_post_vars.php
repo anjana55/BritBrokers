@@ -98,7 +98,8 @@ if(!preg_match('/^[A-Za-z]?$/', $featured)){
 	$featured = "";
 }
 
-$keywords = htmlspecialchars(mb_substr(req_str('kwd'), 0, 100), ENT_QUOTES);
+// Kept as typed (queries use placeholders); escaped wherever it is shown on a page.
+$keywords = mb_substr(req_str('kwd'), 0, 100);
 
 list($sort_by, $sort_order) = safe_sort(req_str('sby'), req_str('sor') !== "" ? req_str('sor') : "DESC");
 ?>

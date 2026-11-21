@@ -65,6 +65,7 @@ $(document).ready(function() {
 	var myDropzone = new Dropzone("#dropzone_area",
 	{ 
 		url: "upload.php",
+		headers: { "X-CSRF-Token": window.BB_CSRF },
 		autoProcessQueue: false,
 		addRemoveLinks: true,
 		params: {"prop_id" : prop_id},

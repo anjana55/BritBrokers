@@ -1,7 +1,16 @@
+<?php
+require_once __DIR__ . "/functions.php";
+start_secure_session();
+if(is_admin()){
+	header("Location: control_panel.php");
+	exit();
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <?php
 include "header.php";
+echo csrf_meta();
 ?>
 <script>
 $(document).ready(function() {
@@ -18,6 +27,10 @@ $(document).ready(function() {
 			if(msg=="true"){
 				var url = "control_panel.php";
 				$(location).attr('href',url);
+			} else if(msg=="locked"){
+				$("#notice").addClass("light_error");
+				$("#notice").html("Too many failed attempts. Please wait 15 minutes and try again.");
+				$("#notice").show("slow");
 			} else {
 				$("#notice").addClass("light_error");
 				$("#notice").html("Login failed! Incorrect user name or password.");

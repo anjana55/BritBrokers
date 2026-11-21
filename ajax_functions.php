@@ -5,7 +5,8 @@ $admin = is_admin();
 
 $tsk = isset($_REQUEST['tsk']) && is_string($_REQUEST['tsk']) ? $_REQUEST['tsk'] : "";
 
-// Tasks that change data: admin only, and POST only (a link or image tag can no longer trigger them).
+// Tasks that change data: admin only, POST only, and with this session's CSRF token
+// (so neither a link nor a form on another site can trigger them).
 $write_tasks = array("adpr", "adft", "prdl", "imdl", "imft", "dlai", "edpr");
 if(in_array($tsk, $write_tasks, true)){
 	if(!$admin){
@@ -13,11 +14,7 @@ if(in_array($tsk, $write_tasks, true)){
 		echo "error|Not authorized!";
 		exit();
 	}
-	if($_SERVER['REQUEST_METHOD'] !== 'POST'){
-		http_response_code(405);
-		echo "error|Invalid request method!";
-		exit();
-	}
+	require_csrf();
 }
 
 $link = setConnection();
@@ -41,15 +38,15 @@ if($tsk!==""){
 			}
 			
 			if($src_for=="S"){
-				$filter=" AND type='SALE'";
+				$filter=array("type" => "SALE");
 			} else if($src_for=="R"){
-				$filter=" AND type='RENT'";
+				$filter=array("type" => "RENT");
 			} else {
-				$filter="";
+				$filter=array();
 			}
 			
-			$out = fillSelect($link, "price_ranges", "price", "price", "price","min_max='MIN'" . $filter,"",true);
-			$out .= "|" . fillSelect($link, "price_ranges", "price", "price", "price","min_max='MAX'" . $filter,"",true);
+			$out = fillSelect($link, "price_ranges", "price", "price", "price", array("min_max" => "MIN") + $filter,"",true);
+			$out .= "|" . fillSelect($link, "price_ranges", "price", "price", "price", array("min_max" => "MAX") + $filter,"",true);
 			echo $out;
 			break;
 		case "adpr": //Add property

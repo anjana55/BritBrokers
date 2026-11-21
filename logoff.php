@@ -1,11 +1,12 @@
 <?php
-include_once __DIR__ . "/auth.php";
+require_once __DIR__ . "/functions.php";
 start_secure_session();
 
-// remove all session variables and destroy the session
-$_SESSION = array();
-if(ini_get("session.use_cookies")){
-	$params = session_get_cookie_params();
-	setcookie(session_name(), "", time() - 42000, $params["path"], $params["domain"], $params["secure"], $params["httponly"]);
+// Only a POST with this session's token can log someone out (a link on another site cannot).
+if(($_SERVER['REQUEST_METHOD'] ?? "") === "POST" && csrf_valid()){
+	logout_admin();
+	echo "true";
+} else {
+	http_response_code(403);
+	echo "false";
 }
-session_destroy();

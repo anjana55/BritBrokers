@@ -115,11 +115,11 @@ $(document).ready(function(){
 							<option value="">Any</option>
 							<?php
 							if($bt=="R"){
-								$fltr=" AND type='RENT'";
+								$fltr=array("type" => "RENT");
 							} else {
-								$fltr=" AND type='SALE'";
+								$fltr=array("type" => "SALE");
 							}
-							echo fillSelect($link, "price_ranges", "price", "price", "price","min_max='MIN'" . $fltr ,"",true);
+							echo fillSelect($link, "price_ranges", "price", "price", "price",array("min_max" => "MIN") + $fltr ,"",true);
 							
 							if($min_price!=""){
 								echo "<option disabled>──────────</option>";
@@ -136,7 +136,7 @@ $(document).ready(function(){
 						<select name="mxp" id="mxp" class="form-control">
 							<option value="">Any</option>
 							<?php
-							echo fillSelect($link, "price_ranges", "price", "price", "price","min_max='MAX'" . $fltr ,"",true);
+							echo fillSelect($link, "price_ranges", "price", "price", "price",array("min_max" => "MAX") + $fltr ,"",true);
 							
 							if($max_price!=""){
 								echo "<option disabled>──────────</option>";
@@ -196,7 +196,7 @@ $(document).ready(function(){
 						<span class="search-label">Keywords</span>
 					</div>
 					<div class="col-xs-8">
-						<input type="text" name="kwd" id="kwd" class="form-control" value="<?php echo $keywords ?>">
+						<input type="text" name="kwd" id="kwd" class="form-control" value="<?php echo e($keywords) ?>">
 					</div>
 				</div>
 				<div class='col-xs-12'>
