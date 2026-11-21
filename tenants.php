@@ -2,11 +2,9 @@
 <?php
 page_head(array(
 	"title" => "Finding the Right Property to Rent in Colombo. Best selection of Houses & Apartments",
-	"description" => "",
+	"description" => "We at British Brokers know how important it is for you to find the right home. Experts in the local rental market, we will listen carefully to your needs and help you find the best house or apartment within your budget.",
 ));
 ?>
-<meta name="description" content="We at British Brokers know how important it is for you to find the right home.
-Experts in the local rental market, we will listen carefully to your needs and help you find the best house or apartment within your budget.">
 <meta name="keywords" content="We at British Brokers know how important it is for you to find the right home.
 Experts in the local rental market, we will listen carefully to your needs and help you find the best house or apartment within your budget.">
 

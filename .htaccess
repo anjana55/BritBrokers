@@ -48,6 +48,8 @@ Options -Indexes
 <IfModule mod_rewrite.c>
 	RewriteEngine On
 	RewriteRule ^property-([0-9]+)(-[a-z0-9-]*)?$ single-property.php?pid=$1 [L,QSA]
+	# Sitemap for search engines
+	RewriteRule ^sitemap\.xml$ sitemap.php [L]
 </IfModule>
 
 # Once HTTPS works on the domain, uncomment to force it:

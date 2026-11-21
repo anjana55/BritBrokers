@@ -11,6 +11,7 @@ if(preg_match('#^/(inc|templates|bin|lib|migrations|tests)(/|$)#', $path) || pre
 	http_response_code(403);
 	exit("Forbidden");
 }
+if($path === "/sitemap.xml"){ chdir($root); require $root . "/sitemap.php"; return true; }
 if(preg_match('#^/property-([0-9]+)(-[a-z0-9-]*)?$#', $path, $m)){
 	$_GET['pid'] = $_REQUEST['pid'] = $m[1];
 	$_SERVER['SCRIPT_NAME'] = "/single-property.php";

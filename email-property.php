@@ -44,6 +44,7 @@ $title = $property['property_type_name'] . " for " . $property['business_type'] 
 $gpf = site_url() . "/";
 ?>
     <meta charset="utf-8">
+    <meta name="robots" content="noindex,nofollow">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">	
 	<link rel="icon" 
       type="image/png" 

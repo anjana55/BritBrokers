@@ -7,6 +7,7 @@ if(is_admin()){
 }
 page_head(array(
 	"title" => "Admin login - British Brokers",
+	"robots" => "noindex,nofollow",
 	"csrf" => true,
 ));
 ?>

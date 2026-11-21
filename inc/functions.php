@@ -764,9 +764,11 @@ function fillCities($link, $district="", $selected=""){
 	return fillSelect($link, "cities", "city_name", "city_name", "city_id", $filter, $selected);
 }
 
+/** Shorten text to $len characters. Counts characters, not bytes, so "’" or "•" are never cut in half. */
 function truncate($str, $len, $trail="..."){
-	if (strlen($str)>$len){
-		$disp = substr($str,0,$len - (strlen($trail)+1)) . $trail;
+	$str = (string)$str;
+	if (mb_strlen($str, "UTF-8")>$len){
+		$disp = mb_substr($str,0,$len - (mb_strlen($trail)+1), "UTF-8") . $trail;
 	} else {
 		$disp = $str;
 	}

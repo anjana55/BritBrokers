@@ -114,6 +114,17 @@ the bundles are linked with `?v=<timestamp>`, so a rebuild is picked up immediat
 New photos added to `img/` can be shrunk with `python3 bin/optimize-images.py img` (needs Pillow).
 It re-encodes JPEGs at quality 82, only where it saves at least 15% with no visible change.
 
+## Search engines and analytics
+
+- Every page gets a canonical link, Open Graph/Twitter tags for link previews, and (home, contact) business
+  details as structured data. Pass `title`, `description`, `canonical`, `image`, `robots` to `page_head()`.
+- Filtered search results are `noindex,follow`; login and control panel are `noindex,nofollow`.
+- `sitemap.xml` (served by `sitemap.php`) lists the main pages and every property. Submit it once in
+  Google Search Console.
+- `robots.txt` only works at the root of the domain; if the site runs in `/live/`, copy its lines to the
+  domain root's robots.txt with `/live` in front of each path.
+- Google Analytics 4: set `GA4_MEASUREMENT_ID` in the config. Empty means no tracking. Admin pages are never tracked.
+
 ## Scheduled job
 
 Exchange rates (used by the price converter) are refreshed by:

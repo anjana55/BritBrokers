@@ -47,9 +47,20 @@ $properties = getProperties($link,$bt,$pt, $features, $min_bdrm, $max_bdrm, $min
 $page_name=basename($_SERVER['SCRIPT_NAME']);
 
 $title = $property['property_type_name'] . " for " . $property['business_type'] . " at " . $property['city_name'] . ", " . $property['district_name'];
+
+// For search results and link previews: "3 Bedroom Apartment for Rent in Colombo 7", the start of the
+// description with the price, and the main photo.
+$seo_title = ((int)$property['bedrooms'] > 0 && strpos($property['property_type'], "LAN") !== 0 ? (int)$property['bedrooms'] . " Bedroom " : "")
+	. $property['property_type_name'] . " for " . $property['business_type'] . " in " . $property['city_name'];
+$price_text = ($property['currency'] === "LKR" ? "Rs. " : $property['currency'] . " ") . number_format((float)$property['price'])
+	. ($property['bt_id'] === "R" ? " per month" : "");
+$seo_description = $price_text . ". " . truncate(trim(preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($property['description']), ENT_QUOTES))), 140);
+$main_photo = getPropertyImages($link, $pid, 1, "PROMN");
 page_head(array(
-	"title" => "British Brokers - " . $title,
-	"description" => "British Brokers Properties: " . $title,
+	"title" => $seo_title . " | British Brokers",
+	"description" => $seo_description,
+	"canonical" => property_url($property, array(), true),
+	"image" => $main_photo ? $main_photo[0]['img_url'] : "img/bb-main-1.jpg",
 	"validator" => true, // the "send to a friend" form
 ));
 ?>
