@@ -7,15 +7,23 @@ Options -Indexes
 	Require all denied
 </FilesMatch>
 
-# Library files and includes are not pages; block direct requests to them
-<FilesMatch "^(config|auth|functions|set_post_vars|image_processing|captcha\.class|GIFEncoder\.class)\.php$">
+# Library code (inc/), page parts (templates/), bin/, lib/, migrations/ and tests/ each have their own
+# .htaccess that blocks them. Only the pages in this folder are served.
+<Files "bootstrap.php">
 	Require all denied
-</FilesMatch>
+</Files>
 
 <IfModule mod_headers.c>
 	Header always set X-Content-Type-Options "nosniff"
 	Header always set X-Frame-Options "SAMEORIGIN"
 	Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# Clean property links: property-123-3-bedroom-house-colombo-7 -> single-property.php?pid=123
+# (the text after the number is only for people and search engines; the page redirects to the current one)
+<IfModule mod_rewrite.c>
+	RewriteEngine On
+	RewriteRule ^property-([0-9]+)(-[a-z0-9-]*)?$ single-property.php?pid=$1 [L,QSA]
 </IfModule>
 
 # Once HTTPS works on the domain, uncomment to force it:

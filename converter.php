@@ -1,26 +1,24 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
+<?php require_once __DIR__ . "/bootstrap.php"; ?>
 <?php
-include "header.php";
+page_head(array(
+	"title" => "Finding the Right Property to Rent in Colombo. Best selection of Houses & Apartments",
+	"description" => "",
+));
 ?>
-<title>Finding the Right Property to Rent in Colombo. Best selection of Houses & Apartments</title>
 <meta name="description" content="We at British Brokers know how important it is for you to find the right home.
 Experts in the local rental market, we will listen carefully to your needs and help you find the best house or apartment within your budget.">
 <meta name="keywords" content="We at British Brokers know how important it is for you to find the right home.
 Experts in the local rental market, we will listen carefully to your needs and help you find the best house or apartment within your budget.">
-</head>
 
 
 
-<body id="home">
+<?php page_body("home"); ?>
 <?php
-include "navigation.php";
 /*
-include_once "functions.php";
+require_once __DIR__ . "/bootstrap.php";
 $link = setConnection();
 
-include "set_post_vars.php";
+include SITE_ROOT . "/inc/set_post_vars.php";
 */
 ?>
 
@@ -39,9 +37,6 @@ include "set_post_vars.php";
     <!-- content close -->
 
 <?php
-include "sub_footer.php";
-include "footer.php";
+page_end(true, array("pid" => $pid ?? ""));
 //@mysqli_close($link);
 ?>
-</body>
-</html>

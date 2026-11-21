@@ -1,15 +1,14 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
+<?php require_once __DIR__ . "/bootstrap.php"; ?>
 <?php
-include "header.php";
+page_head(array(
+	"title" => "Find out about Buying Houses & Apartments and Investing in Sri Lanka",
+	"description" => "",
+));
 ?>
-<title>Find out about Buying Houses & Apartments and Investing in Sri Lanka</title>
 <meta name="description" content="British Brokers prides itself in offering an efficient and professional sales service, listening carefully to the requirements of prospective buyers and matching them with suitable properties.
 With international reach, we showcase properties to buyers all over the world.">
 <meta name="keywords" content="British Brokers prides itself in offering an efficient and professional sales service, listening carefully to the requirements of prospective buyers and matching them with suitable properties.
 With international reach, we showcase properties to buyers all over the world.">
-</head>
 <script src="js/jssor.slider.mini.js"></script>
 <script src="js/jquery.flexslider.js"></script>
 <script>
@@ -49,14 +48,13 @@ With international reach, we showcase properties to buyers all over the world.">
 		$('.flexslider').flexslider();		
 	});
 </script>
-<body id="home">
+<?php page_body("home"); ?>
 <?php
-include "navigation.php";
-include_once "functions.php";
+require_once __DIR__ . "/bootstrap.php";
 
 $link = setConnection();
 
-include "set_post_vars.php";
+include SITE_ROOT . "/inc/set_post_vars.php";
 ?>
 
     <!-- content begin -->
@@ -80,7 +78,7 @@ include "set_post_vars.php";
 		<section id="property-search">
 			<div class="container-fluid">
 			<?php
-				include("search_box.php");
+				include SITE_ROOT . "/templates/search_box.php";
 			?>
 			</div>
 		</section>
@@ -172,9 +170,6 @@ include "set_post_vars.php";
     <!-- content close -->
 
 <?php
-include "sub_footer.php";
-include "footer.php";
+page_end(true, array("pid" => $pid ?? ""));
 @mysqli_close($link);
 ?>
-</body>
-</html>

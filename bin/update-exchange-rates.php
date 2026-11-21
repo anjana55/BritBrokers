@@ -10,7 +10,7 @@ if(PHP_SAPI !== "cli"){
 	exit();
 }
 
-require __DIR__ . "/../functions.php";
+require dirname(__DIR__) . "/bootstrap.php";
 
 $app_id = cfg("OPENEXCHANGERATES_APP_ID");
 if($app_id === ""){

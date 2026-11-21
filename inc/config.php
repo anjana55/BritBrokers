@@ -5,11 +5,16 @@ Configuration for BRITBROKERS.COM
 No secrets live in this file. Values come from, in order:
   1. Real environment variables (e.g. set in the hosting control panel / Apache SetEnv)
   2. An env file OUTSIDE the web root: the path in BRITBROKERS_ENV_FILE,
-     or "britbrokers.env" in the folder above this one
-  3. A ".env" file next to this file (blocked from the web by .htaccess) - local development only
+     or "britbrokers.env" in the folder above the web root
+  3. A ".env" file in the web root (blocked from the web by .htaccess) - local development only
 
 See .env.example for the list of settings.
 ----------------------------------------------------------- */
+
+// The site's web root (this file lives in inc/).
+if(!defined("SITE_ROOT")){
+	define("SITE_ROOT", dirname(__DIR__));
+}
 
 function bb_config_values(){
 	static $values = null;
@@ -23,8 +28,8 @@ function bb_config_values(){
 	if($env_file){
 		$candidates[] = $env_file;
 	}
-	$candidates[] = dirname(__DIR__) . DIRECTORY_SEPARATOR . "britbrokers.env";
-	$candidates[] = __DIR__ . DIRECTORY_SEPARATOR . ".env";
+	$candidates[] = dirname(SITE_ROOT) . DIRECTORY_SEPARATOR . "britbrokers.env"; // above the web root
+	$candidates[] = SITE_ROOT . DIRECTORY_SEPARATOR . ".env";
 
 	foreach($candidates as $file){
 		if(is_readable($file)){

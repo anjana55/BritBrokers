@@ -2,7 +2,7 @@
 /*
  * Admin login (called by login.php). Replies "true" or "false"; "locked" when throttled.
  */
-require_once __DIR__ . "/functions.php";
+require_once __DIR__ . "/bootstrap.php";
 start_secure_session();
 
 if(($_SERVER['REQUEST_METHOD'] ?? "") !== 'POST' || !csrf_valid()){

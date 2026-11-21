@@ -1,6 +1,6 @@
-<?php require_once __DIR__ . "/functions.php"; require_admin_ajax(); // admin only ?>
+<?php require_once __DIR__ . "/bootstrap.php"; require_admin_ajax(); // admin only ?>
 <?php
-	include_once("functions.php");
+	require_once __DIR__ . "/bootstrap.php";
 	$link = setConnection();
 
 	$no_recs = true;

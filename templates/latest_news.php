@@ -6,7 +6,7 @@
  * The blog runs WordPress 4.9, which does not support PHP 8; loading it here would break the
  * home page once the server moves to PHP 8.5. If the blog tables are missing, the box is left out.
  */
-include_once __DIR__ . "/functions.php";
+require_once dirname(__DIR__) . "/bootstrap.php";
 
 // The blog tables are real utf8mb4, so this connection must be utf8mb4 too.
 $news_link = setConnection("utf8mb4");

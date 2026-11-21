@@ -1,7 +1,6 @@
-<?php require_once __DIR__ . "/functions.php"; require_admin_ajax(); // admin only ?>
+<?php require_once __DIR__ . "/bootstrap.php"; require_admin_ajax(); // admin only ?>
 <?php
-include_once "functions.php";
-include_once "header.php";
+// Shown inside the control panel, which already loads the page head (scripts and styles).
 $link = setConnection()
 ?>
 

@@ -8,7 +8,7 @@ if($pid === ""){
 $bt  = (isset($_REQUEST['bt']) && is_string($_REQUEST['bt']) && preg_match('/^[A-Za-z]{1,3}$/', $_REQUEST['bt'])) ? strtoupper($_REQUEST['bt']) : "";
 $did = (isset($_REQUEST['did']) && is_string($_REQUEST['did']) && preg_match('/^\d{1,10}$/', $_REQUEST['did'])) ? $_REQUEST['did'] : "";
 
-include_once __DIR__ . "/functions.php";
+require_once __DIR__ . "/bootstrap.php";
 $link = setConnection();
 $properties = getPropertyByID($link, $pid);
 if(!$properties){
@@ -24,7 +24,7 @@ $property = $properties[0];
 <html lang="en">
 <head>
 <?php
-include "set_post_vars.php";
+include SITE_ROOT . "/inc/set_post_vars.php";
 
 $total_records = getProperties($link,$bt,$pt, $features, $min_bdrm, $max_bdrm, $min_btrm, $max_btrm, $min_price, $max_price, $keywords, $district, $city, $featured, $sort_by, $sort_order,null,null,true);
 
@@ -1067,7 +1067,7 @@ $gpf = site_url() . "/";
 									}
 
 									echo "<td>\n";
-										echo "<a id='img_" . $image['img_id'] . "' href='" . e($gpf) . "single-property.php?pid=" . (int)$pid . "'>";
+										echo "<a id='img_" . $image['img_id'] . "' href='" . e(property_url($property, array(), true)) . "'>";
 										echo "<img class='img-thumbnail img-responsive' src='" . $gpf . $image['img_url'] . "' width='200px' alt=''/>\n";
 										echo "</a>\n";
 									echo "</td>\n";
