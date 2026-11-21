@@ -44,9 +44,21 @@ if($t_city!=""){
 	//$title.= " ";
 }
 						
+// Search engines: index the plain listings (rent / sale, and their pages), not every filter combination.
+$listing_query = array();
+if(($_GET['src_for'] ?? "") === "S"){
+	$listing_query['src_for'] = "S";
+}
+if($current_page > 1){
+	$listing_query['pg'] = $current_page;
+}
+$filtered = array_diff_key(array_filter($_GET, function($v){ return $v !== "" && $v !== array(); }), array("src_for" => 1, "pg" => 1));
+$search_title = trim($title) !== "" ? trim(preg_replace('/\s+/', ' ', $title)) : "Properties";
 page_head(array(
-	"title" => "British Brokers - Property Search - " . ($place),
-	"description" => ("British Brokers Search: " . $title),
+	"title" => $search_title . ($current_page > 1 ? " - page " . $current_page : "") . " | British Brokers",
+	"description" => "Browse " . $search_title . " in Sri Lanka with British Brokers, Colombo's property agent for houses, apartments and land to rent and buy.",
+	"canonical" => "list_property.php" . ($listing_query ? "?" . http_build_query($listing_query) : ""),
+	"robots" => $filtered ? "noindex,follow" : "",
 ));
 ?>
 

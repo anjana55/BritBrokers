@@ -3,6 +3,7 @@
 page_head(array(
 	"title" => "British Brokers Real Estate & Lettings Agent specialise in Property across Colombo, Sri Lanka.",
 	"description" => "British Brokers – The Home of Colombo Property.  Offering our clients the finest properties in the market, cutting edge technology, high profile marketing and professional credentials, British Brokers is Colombo’s leading property agent.",
+	"json_ld" => business_json_ld(),
 ));
 ?>
 <?php page_body("home"); ?>

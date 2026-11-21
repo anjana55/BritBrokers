@@ -3,6 +3,7 @@
 page_head(array(
 	"title" => "Contact Us by Email, Telephone or Live Chat.",
 	"description" => "Contact British Brokers by email, telephone, or live chat about your real estate needs.",
+	"json_ld" => business_json_ld(),
 ));
 ?>
 <script>

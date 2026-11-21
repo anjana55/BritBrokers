@@ -2,11 +2,9 @@
 <?php
 page_head(array(
 	"title" => "Find out about Buying Houses & Apartments and Investing in Sri Lanka",
-	"description" => "",
+	"description" => "British Brokers prides itself in offering an efficient and professional sales service, listening carefully to the requirements of prospective buyers and matching them with suitable properties. With international reach, we showcase properties to buyers all over the world.",
 ));
 ?>
-<meta name="description" content="British Brokers prides itself in offering an efficient and professional sales service, listening carefully to the requirements of prospective buyers and matching them with suitable properties.
-With international reach, we showcase properties to buyers all over the world.">
 <meta name="keywords" content="British Brokers prides itself in offering an efficient and professional sales service, listening carefully to the requirements of prospective buyers and matching them with suitable properties.
 With international reach, we showcase properties to buyers all over the world.">
 <script src="js/jssor.slider.mini.js"></script>

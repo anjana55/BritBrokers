@@ -42,8 +42,8 @@ $t_type = ($pt !== "") ? getPropertyTypeByID($link, $pt) : "";
 // Business type: S (sale) or R (rent); defaults to rent as before
 $bt = strtoupper(req_str('src_for'));
 if(!preg_match('/^[A-Z]{1,3}$/', $bt)){
-	$bt = "R";
-	$t_for = "";
+	$bt = "R"; // listings show properties to rent unless asked otherwise
+	$t_for = getBusinessTypeByID($link, $bt);
 } else {
 	$t_for = getBusinessTypeByID($link, $bt);
 }
