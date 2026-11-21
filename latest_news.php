@@ -8,7 +8,8 @@
  */
 include_once __DIR__ . "/functions.php";
 
-$news_link = setConnection();
+// The blog tables are real utf8mb4, so this connection must be utf8mb4 too.
+$news_link = setConnection("utf8mb4");
 $wp_prefix = preg_replace('/[^A-Za-z0-9_]/', '', cfg("WP_TABLE_PREFIX", "bbb_"));
 
 $SQL = "SELECT p.ID, p.post_title, p.post_content, p.guid,

@@ -11,13 +11,22 @@ include_once __DIR__ . "/auth.php";
 // Errors are written to the PHP error log by runQuery() instead of being shown to visitors.
 mysqli_report(MYSQLI_REPORT_OFF);
 
-function setConnection(){
+/**
+ * Connect to the database.
+ *
+ * The site's tables are declared latin1 but hold UTF-8 text (written that way by the old PHP 5 code).
+ * A latin1 connection passes those bytes through unchanged, which is what PHP 5 did. PHP 8 connects
+ * as utf8mb4 by default, which converts them a second time and shows "â€™" instead of "’".
+ * Override with DB_CHARSET (utf8mb4 once the tables have been converted).
+ */
+function setConnection($charset = null){
 	$link = @mysqli_connect(db_host(), db_user(), db_password(), db_name());
 	if(!$link){
 		error_log("BritBrokers DB connection failed: " . mysqli_connect_error());
 		http_response_code(503);
 		die("The site is temporarily unavailable. Please try again shortly.");
 	}
+	mysqli_set_charset($link, $charset ?? cfg("DB_CHARSET", "latin1"));
 	return $link;
 }
 
