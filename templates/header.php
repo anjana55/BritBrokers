@@ -4,33 +4,19 @@
 	<link rel="icon" 
       type="image/png" 
       href="favicon.ico">
-    <!-- LOAD CSS FILES -->
-    <link href="css/main.css" rel="stylesheet" type="text/css">
-    <!-- BootstrapValidator CSS -->
-    <link rel="stylesheet" href="css/bootstrapValidator.min.css"/>
-	
-    <!-- LOAD JS FILES -->
-    <script src="js/jquery.min.js"></script>
-    <script src="js/jquery.isotope.min.js"></script>
-    <script src="js/jquery.prettyPhoto.js"></script>
-    <script src="js/easing.js"></script>
-    <script src="js/jquery.lazyload.js"></script>
-    <script src="js/jquery.ui.totop.js"></script>
-    <!-- <script src="js/selectnav.js"></script> -->
-    <script src="js/ender.js"></script>
-	<script src="js/jquery.confirm.js"></script>
-	<script src="js/custom.js"></script>
-
-    <script type="text/javascript" src="js/bootstrap.js"></script>
-    <!-- BootstrapValidator JS -->
-    <script type="text/javascript" src="js/bootstrapValidator.min.js"></script>
-
-	<link rel="stylesheet" type="text/css" href="css/bootstrap-select.css">
-	<script type="text/javascript" src="js/bootstrap-select.js"></script>
-
-	<!-- DroZone include -->
-	<script type="text/javascript" src="js/dropzone.js"></script>
-	<link rel="stylesheet" type="text/css" href="css/dropzone.css">
+<?php
+	// Bundles built by bin/build-assets.mjs (npm run build). ?v= changes when a bundle changes, so browsers
+	// can cache them for a year (see .htaccess) and still get new versions straight away.
+	$asset = function($file){ return $file . "?v=" . @filemtime(SITE_ROOT . "/" . $file); };
+	?>
+	<link rel="stylesheet" href="<?php echo $asset("css/site.min.css"); ?>">
+	<script src="<?php echo $asset("js/site.min.js"); ?>"></script>
+<?php if(page_meta("admin")): ?>
+	<link rel="stylesheet" href="<?php echo $asset("css/admin.min.css"); ?>">
+	<script src="<?php echo $asset("js/admin.min.js"); ?>"></script>
+<?php elseif(page_meta("validator")): ?>
+	<script src="<?php echo $asset("js/validator.min.js"); ?>"></script>
+<?php endif; ?>
 	
 	
 	<!--Start of Tawk.to Script-->

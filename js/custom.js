@@ -19,31 +19,8 @@ jQuery(document).ready(function() {
 
 
 	
-	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-	// filtering gallery
-	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-	var $container = jQuery('#gallery');
-		$container.isotope({
-			itemSelector: '.item',
-			filter: '*',
-	});
-	jQuery('#filters a').click(function(){
-		var $this = jQuery(this);
-		if ( $this.hasClass('selected') ) {
-			return false;
-			}
-		var $optionSet = $this.parents();
-		$optionSet.find('.selected').removeClass('selected');
-		$this.addClass('selected');
-				
-		var selector = jQuery(this).attr('data-filter');
-		$container.isotope({ 
-		filter: selector,
-	});
-	return false;
-	});
-	
-	
+	// (gallery filtering with isotope removed: no page has a #gallery)
+
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 	// paralax background
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 	
@@ -61,23 +38,8 @@ jQuery(document).ready(function() {
 	document.createElement("article");
 	document.createElement("section");
 	
-	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-	// prettyPhoto function
-	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 	
-	jQuery("area[data-gal^='prettyPhoto']").prettyPhoto();
-	jQuery("body:first a[data-gal^='prettyPhoto']").prettyPhoto({animation_speed:'fast',theme:'light_square',slideshow:3000, autoplay_slideshow: false});
-	jQuery("body:gt(0) a[data-gal^='prettyPhoto']").prettyPhoto({animation_speed:'fast',slideshow:10000, hideflash: true});
-		
-	jQuery("#custom_content a[data-gal^='prettyPhoto']:first").prettyPhoto({
-		custom_markup: '<div id="map_canvas" style="width:260px; height:265px"></div>',
-		changepicturecallback: function(){ initialize(); }
-	});
-	jQuery("#custom_content a[data-gal^='prettyPhoto']:last").prettyPhoto({
-		custom_markup: '<div id="bsap_1259344" class="bsarocks bsap_d49a0984d0f377271ccbf01a33f2b6d6"></div><div id="bsap_1237859" class="bsarocks bsap_d49a0984d0f377271ccbf01a33f2b6d6" style="height:260px"></div><div id="bsap_1251710" class="bsarocks bsap_d49a0984d0f377271ccbf01a33f2b6d6"></div>',
-		changepicturecallback: function(){ _bsap.exec(); }
-	});
-	
-	
+	// (prettyPhoto lightbox removed: no page uses it)
+
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 	// scroll to top
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 	
@@ -100,9 +62,7 @@ jQuery(document).ready(function() {
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 	// resize
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 	
-	window.onresize = function(event) {
-		jQuery('#gallery').isotope('reLayout');
-  	};
+
 	
 	
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 

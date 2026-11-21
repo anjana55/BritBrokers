@@ -89,6 +89,31 @@ Property links come from `property_url($property)`: `property-123-3-bedroom-hous
 | `tests/` | Tests (blocked from the web). |
 | `lib/PHPMailer/` | PHPMailer 6 (see `VERSION.txt`). |
 
+## CSS, JavaScript and images
+
+Pages load one CSS and one JavaScript bundle (plus admin bundles on the control panel):
+
+| Bundle | Contents |
+|---|---|
+| `css/site.min.css` | Bootstrap 3.4.1 + theme, flexslider, `css/style.css`, Font Awesome, validator styles, `css/fixes.css` |
+| `js/site.min.js` | jQuery 3.7.1 + jQuery Migrate, easing, lazyload, to-top button, Bootstrap 3.4.1, `js/custom.js` |
+| `css/admin.min.css`, `js/admin.min.js` | jQuery UI, form validator, bootstrap-select, Dropzone, confirm dialogs |
+| `js/validator.min.js` | Form validator only (property page) |
+
+The bundles are built and committed, so the server needs no Node. After changing `css/style.css`,
+`css/fixes.css`, `js/custom.js` or a library:
+
+```
+npm install        # once
+npm run build
+```
+
+Bundle contents are listed in `bin/build-assets.mjs`. Browsers cache static files for 30 days (`.htaccess`);
+the bundles are linked with `?v=<timestamp>`, so a rebuild is picked up immediately.
+
+New photos added to `img/` can be shrunk with `python3 bin/optimize-images.py img` (needs Pillow).
+It re-encodes JPEGs at quality 82, only where it saves at least 15% with no visible change.
+
 ## Scheduled job
 
 Exchange rates (used by the price converter) are refreshed by:

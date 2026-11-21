@@ -4,6 +4,7 @@ require_admin();
 page_head(array(
 	"title" => "Control panel - British Brokers",
 	"csrf" => true, // adds the CSRF token to every AJAX request made from this page and its screens
+	"admin" => true, // admin scripts and styles (uploads, form validation, sortable photos)
 ));
 ?>
 <script>

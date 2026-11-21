@@ -1,0 +1,34 @@
+/* Site-wide fixes, loaded last in css/site.min.css */
+
+/* A .row directly inside another .row (no column in between) doubled Bootstrap's negative side
+   margins and pushed the property page past the screen edge on phones. */
+.row > .row {
+	margin-left: 0;
+	margin-right: 0;
+}
+
+/* Login page: the background photo was shown at its full 1920px width, so the page scrolled sideways. */
+#login_main .area > img {
+	display: block;
+	width: 100%;
+	height: auto;
+	min-height: 380px;   /* on phones, still tall enough to sit behind the login box */
+	object-fit: cover;
+}
+
+/* Property photo slider: slides waiting off-screen were not clipped, so phones could scroll sideways. */
+#slider1_container {
+	overflow: hidden;
+}
+
+/* Login box: fixed 400px wide; keep it inside small screens. */
+#login_main .fixed {
+	max-width: calc(100% - 10px);
+	box-sizing: border-box;
+}
+
+/* Sticky footer: absolutely positioned without "left", so on pages where it sits inside an indented
+   block it started 20px in and stuck out past the right edge. */
+.footer {
+	left: 0;
+}
