@@ -13,8 +13,6 @@
 
     </footer>
 	
-    <!-- IE10 viewport hack for Surface/desktop Windows 8 bug -->
-    <script src="js/ie10_bug_fix.js"></script>
     <!-- footer close -->
 <div id='loadingDiv' class="modal fade">
   <div class="modal-dialog">

@@ -50,17 +50,13 @@ $title = $property['property_type_name'] . " for " . $property['business_type'] 
 page_head(array(
 	"title" => "British Brokers - " . $title,
 	"description" => "British Brokers Properties: " . $title,
+	"validator" => true, // the "send to a friend" form
 ));
 ?>
 
-<!-- use jssor.slider.min.js instead for release -->
-<!-- jssor.slider.min.js = (jssor.js + jssor.slider.js) -->
 <script type="text/javascript" src="js/jssor.js"></script>
 <script type="text/javascript" src="js/jssor.slider.js"></script>
-<!-- use jssor.slider.player.ytiframe.min.js for release -->
 <script type="text/javascript" src="js/jssor.player.ytiframe.js"></script>
-<script src="js/jquery-ui.js"></script>
-<link rel="stylesheet" href="css/jquery-ui.css">
 <script src="js/jquery.pano.js"></script>
 
 <style>

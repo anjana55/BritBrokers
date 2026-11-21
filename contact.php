@@ -61,7 +61,7 @@ $(document).ready(function(){
         float:right;
     }
 </style>
-<div class="row" style="height:80px;display:block;"></div>
+<div style="height:80px;display:block;"></div>
 <div class="container">
 	
 	<div class="col-xs-10">
