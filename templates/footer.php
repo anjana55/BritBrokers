@@ -27,4 +27,4 @@
   </div><!-- /.modal-dialog -->
 </div><!-- /.modal -->
 
-<?php include_once("analyticstracking.php") ?>
+<?php include_once __DIR__ . "/analyticstracking.php"; ?>

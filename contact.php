@@ -1,12 +1,10 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
+<?php require_once __DIR__ . "/bootstrap.php"; ?>
 <?php
-include "header.php";
+page_head(array(
+	"title" => "Contact Us by Email, Telephone or Live Chat.",
+	"description" => "Contact British Brokers by email, telephone, or live chat about your real estate needs.",
+));
 ?>
-<title>Contact Us by Email, Telephone or Live Chat.</title>
-<meta name="description" content="Contact British Brokers by email, telephone, or live chat about your real estate needs.">
-<meta name="keywords" content="Contact British Brokers by email, telephone, or live chat about your real estate needs.">
 <script>
 $(document).ready(function(){
 	$("#contact").submit(function(e){
@@ -42,9 +40,8 @@ $(document).ready(function(){
 	});
 });
 </script>
-</head>
 
-<body id="home">
+<?php page_body("home"); ?>
 <style type="text/css" >
     .wrapper
     {
@@ -64,9 +61,6 @@ $(document).ready(function(){
         float:right;
     }
 </style>
-<?php
-include "navigation.php";
-?>
 <div class="row" style="height:80px;display:block;"></div>
 <div class="container">
 	
@@ -172,8 +166,5 @@ include "navigation.php";
 </div>
 
  <?php
-include "footer.php";
+page_end(false);
 ?>
-</body>
-</html>
-

@@ -14,7 +14,8 @@ if(PHP_SAPI !== "cli"){
 }
 
 $site = rtrim($argv[1] ?? dirname(__DIR__), "/");
-require $site . "/functions.php";
+// Works with both layouts: bootstrap.php (from Phase 4) or functions.php in the web root (before)
+require file_exists($site . "/bootstrap.php") ? $site . "/bootstrap.php" : $site . "/functions.php";
 $link = setConnection();
 
 // getProperties($link, bt, pt, features, min_bdrm, max_bdrm, min_btrm, max_btrm, min_price, max_price, keywords, district, city, featured, sort_by, sort_order, start, max, count_only)

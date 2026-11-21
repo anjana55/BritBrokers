@@ -52,11 +52,38 @@ Logins are throttled: 5 failures for one username or 20 from one IP address with
 further attempts for 15 minutes. Sessions end after 2 hours idle, or 12 hours in total. Every request that
 changes data needs the session's CSRF token, which the admin pages add to their AJAX calls automatically.
 
+## Code layout
+
+Only pages and endpoints live in the web root. Every one starts with `require_once __DIR__ . "/bootstrap.php";`.
+
+| Path | What it is |
+|---|---|
+| `*.php` (root) | Pages (`index.php`, `list_property.php`, `single-property.php`, ...), admin screens and endpoints (`ajax_functions.php`, `upload.php`, `mailman.php`, ...) |
+| `inc/` | Library code: `config.php`, `auth.php`, `functions.php` (data access), `layout.php` (page layout, property links), `set_post_vars.php` (search input), image and captcha classes |
+| `templates/` | Page parts: header (CSS/JS), navigation, footer, sub-footer, search box, property listing, sliders, latest news |
+
+A page looks like this:
+
+```php
+<?php
+require_once __DIR__ . "/bootstrap.php";
+page_head(array("title" => "Page title", "description" => "For search engines"));
+?>
+<script>/* page-specific scripts and styles go here, inside <head> */</script>
+<?php page_body("home"); ?>
+  ...content...
+<?php page_end(); /* page_end(false) leaves out the contact band */ ?>
+```
+
+Property links come from `property_url($property)`: `property-123-3-bedroom-house-colombo-7`, mapped to
+`single-property.php?pid=123` by `.htaccess`. Old `single-property.php?pid=` links redirect permanently.
+
 ## Folders
 
 | Path | What it is |
 |---|---|
 | `uploads/`, `uploads/thumbs/` | Property photos uploaded by admins. Not in git; must be writable by PHP. `.htaccess` stops anything in here from running as a script. |
+| `inc/`, `templates/` | Code and page parts (blocked from the web). |
 | `bin/` | Command-line scripts (blocked from the web). |
 | `migrations/` | Database migrations (blocked from the web). |
 | `tests/` | Tests (blocked from the web). |
@@ -77,7 +104,7 @@ Run it from cron once a day.
 ```
 cp .env.example .env              # point DB_NAME at a test copy of the database
 php bin/migrate.php --yes
-php -S 127.0.0.1:8080
+php -S 127.0.0.1:8080 bin/dev-router.php     # the router handles clean links and blocked folders
 ```
 
 Tests (they add and delete records, so use a database whose name contains "test"):

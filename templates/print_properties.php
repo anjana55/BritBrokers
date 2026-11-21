@@ -43,7 +43,7 @@
 									} else {
 										$image_url="img/property/pic (1).jpg";
 									}
-									echo "<a href='single-property.php?pid=" . $property['property_id'] . "&amp;bt=" . $property['business_type'] . "&amp;did=" . $property['district_id'] . "'>";
+									echo "<a href='" . e(property_url($property)) . "'>";
 									echo "<img src='" . $image_url . "' data-original='" . $image_url . "' alt='" . truncate($property['description'],150,"...") . "' class='img-responsive' style='min-width:100%;' >";
 									echo "</a>";
 									
@@ -73,7 +73,7 @@
 									echo "<div class='contents' style='line-height: 1.3em;'>";
 									echo "<div class='name'>" . $property['city_name'] . "</div>";
 									echo truncate($property['description'],145,"...");
-									echo "<a class='contact' href='single-property.php?pid=" . $property['property_id'] . "&amp;bt=" . $property['business_type'] . "&amp;did=" . $property['district_id'] . "'>More</a>";									
+									echo "<a class='contact' href='" . e(property_url($property)) . "'>More</a>";									
 									echo "</div>";
 									
 									echo "<div class='info'>";

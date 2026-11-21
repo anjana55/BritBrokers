@@ -3,8 +3,8 @@
  * Animated GIF captcha. The text comes from the visitor's session
  * (set by captcha_new_code() on the page that shows the form).
  */
-include_once __DIR__ . "/functions.php";
-include_once __DIR__ . "/captcha.class.php";
+require_once __DIR__ . "/bootstrap.php";
+require_once SITE_ROOT . "/inc/captcha.class.php";
 
 start_secure_session();
 $code = $_SESSION['captcha_code'] ?? "";

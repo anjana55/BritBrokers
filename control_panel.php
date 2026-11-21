@@ -1,17 +1,11 @@
 <?php
-require_once __DIR__ . "/functions.php";
+require_once __DIR__ . "/bootstrap.php";
 require_admin();
+page_head(array(
+	"title" => "Control panel - British Brokers",
+	"csrf" => true, // adds the CSRF token to every AJAX request made from this page and its screens
+));
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<?php
-include "header.php";
-echo csrf_meta(); // adds the CSRF token to every AJAX request made from this page and its screens
-?>
-<title>British Brokers Real Estate & Lettings Agent specialise in Property across Colombo, Sri Lanka.</title>
-<meta name="description" content="British Brokers – The Home of Colombo Property.  Offering our clients the finest properties in the market, cutting edge technology, high profile marketing and professional credentials, British Brokers is Colombo’s leading property agent.">
-<meta name="keywords" content="Contact British Brokers by email, telephone, or live chat about your real estate needs.">
 <script>
 $(document).ready(function() {
 	$("#btn_add").click(function(){
@@ -108,11 +102,7 @@ $(document).ready(function() {
 	});		
 });
 </script>
-</head>
-<body id="home" >
-<?php
-include "navigation.php";
-?>
+<?php page_body("home"); ?>
 <section>
 	<div class="row btn-toolbar" style="margin:20px;">
 		<span id="btn_add" class="btn btn-success fileinput-button" >
@@ -136,11 +126,7 @@ include "navigation.php";
 
 <section id="work_area">
 <?php
-include "stats.php";
+include __DIR__ . "/stats.php";
 ?>
 </section>
-<?php
-include "footer.php";
-?>
-</body>
-</html>
+<?php page_end(false); ?>

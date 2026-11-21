@@ -1,5 +1,5 @@
 <?php
-include_once __DIR__ . "/functions.php";
+require_once __DIR__ . "/bootstrap.php";
 start_secure_session();
 $admin = is_admin();
 

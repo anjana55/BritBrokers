@@ -1,16 +1,14 @@
 <?php
-require_once __DIR__ . "/functions.php";
+require_once __DIR__ . "/bootstrap.php";
 start_secure_session();
 if(is_admin()){
 	header("Location: control_panel.php");
 	exit();
 }
-?>
-<!DOCTYPE html>
-<html lang="en">
-<?php
-include "header.php";
-echo csrf_meta();
+page_head(array(
+	"title" => "Admin login - British Brokers",
+	"csrf" => true,
+));
 ?>
 <script>
 $(document).ready(function() {
@@ -47,10 +45,7 @@ $(document).ready(function() {
 	});
 });
 </script>
-<body id="home">
-<?php
-include "navigation.php";
-?>
+<?php page_body("home"); ?>
     <!-- slider -->
     <section id="login_main">
 		<div class="area">
@@ -72,8 +67,4 @@ include "navigation.php";
     </section>
     <!-- slider close -->
 
-<?php
-include "footer.php";
-?>
-</body>
-</html>
+<?php page_end(false); ?>

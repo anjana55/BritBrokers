@@ -623,8 +623,8 @@ function getCityByID($link,$cid){
  * Records that are not local files (e.g. YouTube video tags) or files already gone count as success.
  */
 function delete_upload_file($img_url){
-	$uploads = realpath(__DIR__ . "/uploads");
-	$path = realpath(__DIR__ . "/" . ltrim((string)$img_url, "/"));
+	$uploads = realpath(SITE_ROOT . "/uploads");
+	$path = realpath(SITE_ROOT . "/" . ltrim((string)$img_url, "/"));
 	if($path === false){
 		return true; // nothing on disk to delete
 	}

@@ -1,11 +1,9 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
+<?php require_once __DIR__ . "/bootstrap.php"; ?>
 <?php
-include_once "functions.php";
+require_once __DIR__ . "/bootstrap.php";
 $link = setConnection();
 
-include "set_post_vars.php";
+include SITE_ROOT . "/inc/set_post_vars.php";
 
 $total_records = getProperties($link,$bt,$pt, $features, $min_bdrm, $max_bdrm, $min_btrm, $max_btrm, $min_price, $max_price, $keywords, $district, $city, $featured, $sort_by, $sort_order,null,null,true);
 
@@ -46,11 +44,11 @@ if($t_city!=""){
 	//$title.= " ";
 }
 						
-include "header.php";
+page_head(array(
+	"title" => "British Brokers - Property Search - " . ($place),
+	"description" => ("British Brokers Search: " . $title),
+));
 ?>
-<title>British Brokers - Property Search - <?php echo $place; ?></title>
-<meta name="description" content="<?php echo "British Brokers Search: " . $title; ?>">
-<meta name="keywords" content="<?php echo "British Brokers Search: " . $title; ?>">
 
 <script>
 $(document).ready(function(){
@@ -74,11 +72,7 @@ $(document).ready(function(){
 });
 
 </script>
-</head>
-<body id="home">
-<?php
-include "navigation.php";
-?>
+<?php page_body("home"); ?>
     <!-- subheader begin -->
     <div id="subheader">
         <div class="container">
@@ -101,7 +95,7 @@ include "navigation.php";
 	<section id="property-search">
 		<div class="container-fluid">
 		<?php
-			include("search_box.php");
+			include SITE_ROOT . "/templates/search_box.php";
 		?>
 		</div>
 	</section>
@@ -147,7 +141,7 @@ include "navigation.php";
                    <div class="">
 						<?php
 						//echo "Total Records:" . $total_records;
-						include "print_properties.php";
+						include SITE_ROOT . "/templates/print_properties.php";
 						?>
 					</div>
                 </div>
@@ -155,7 +149,7 @@ include "navigation.php";
                 <div class="col-xs-12 col-sm-12 col-md-3">
                     <div class="widget latest_news">
 						<?php
-						include "latest_news.php";
+						include SITE_ROOT . "/templates/latest_news.php";
 						?>
                     </div>
                 </div>
@@ -168,10 +162,6 @@ include "navigation.php";
 
 
 <?php
-include "sub_footer.php";
-include "footer.php";
+page_end(true, array("pid" => $pid ?? ""));
 @mysqli_close($link);
 ?>
-</body>
-</html>
-

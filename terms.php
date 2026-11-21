@@ -1,18 +1,14 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
+<?php require_once __DIR__ . "/bootstrap.php"; ?>
 <?php
-include "header.php";
+page_head(array(
+	"title" => "British Brokers - Terms and Conditions",
+	"description" => "British Brokers Terms and Conditions",
+));
 ?>
-<title>British Brokers - Terms and Conditions</title>
-<meta name="description" content="British Brokers Terms and Conditions">
-<meta name="keywords" content="British Brokers Terms and Conditions">
-</head>
 
-<body id="home">
+<?php page_body("home"); ?>
 <?php
-include "navigation.php";
-include_once "functions.php";
+require_once __DIR__ . "/bootstrap.php";
 ?>
     <!-- subheader begin -->
     <div id="subheader">
@@ -629,8 +625,5 @@ include_once "functions.php";
     <!-- content close -->
 
 <?php
-include "sub_footer.php";
-include "footer.php";
+page_end(true, array("pid" => $pid ?? ""));
 ?>
-</body>
-</html>

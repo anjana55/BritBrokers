@@ -1,14 +1,11 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
+<?php require_once __DIR__ . "/bootstrap.php"; ?>
 <?php
-include "header.php";
+page_head(array(
+	"title" => "British Brokers Real Estate & Lettings Agent specialise in Property across Colombo, Sri Lanka.",
+	"description" => "British Brokers – The Home of Colombo Property.  Offering our clients the finest properties in the market, cutting edge technology, high profile marketing and professional credentials, British Brokers is Colombo’s leading property agent.",
+));
 ?>
-<title>British Brokers Real Estate & Lettings Agent specialise in Property across Colombo, Sri Lanka.</title>
-<meta name="description" content="British Brokers – The Home of Colombo Property.  Offering our clients the finest properties in the market, cutting edge technology, high profile marketing and professional credentials, British Brokers is Colombo’s leading property agent.">
-<meta name="keywords" content="Contact British Brokers by email, telephone, or live chat about your real estate needs.">
-</head>
-<body id="home">
+<?php page_body("home"); ?>
 <script src="js/jssor.slider.mini.js"></script>
 <script src="js/jquery.flexslider.js"></script>
 <script>
@@ -50,10 +47,9 @@ include "header.php";
 </script>
 
 <?php
-include "navigation.php";
-include_once "functions.php";
+require_once __DIR__ . "/bootstrap.php";
 $link = setConnection();
-include "set_post_vars.php";
+include SITE_ROOT . "/inc/set_post_vars.php";
 $page_name=basename($_SERVER['SCRIPT_NAME']);
 
 
@@ -75,7 +71,7 @@ $page_name=basename($_SERVER['SCRIPT_NAME']);
 
     <section id="property-search">
 		<?php
-			include("search_box.php");
+			include SITE_ROOT . "/templates/search_box.php";
 		?>
 	</section>
 	
@@ -101,13 +97,13 @@ $page_name=basename($_SERVER['SCRIPT_NAME']);
 						$pagination=false;
 						$properties = getProperties($link,'','','','','','','','','','','','','','featured','DESC',0,8);
 						//$properties = getProperties($link,$bt,$pt, $features, $min_bdrm, $max_bdrm, $min_btrm, $max_btrm, $min_price, $max_price, $keywords, $district, $city, $featured, $sort_by, $sort_order, start_from, max_rec, count_only );
-						include "print_properties.php";
+						include SITE_ROOT . "/templates/print_properties.php";
 						?>
 					</div>
                 </div>
 				<div class="col-sm-3 col-md-3 widget">
 				<?php
-					include "latest_news.php";
+					include SITE_ROOT . "/templates/latest_news.php";
 				?>
 				</div>
             </div>
@@ -135,9 +131,6 @@ $page_name=basename($_SERVER['SCRIPT_NAME']);
 		</div>
 	</section>
 <?php
-include "sub_footer.php";
-include "footer.php";
+page_end(true, array("pid" => $pid ?? ""));
 @mysqli_close($link);
 ?>
-</body>
-</html>
