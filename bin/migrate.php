@@ -25,8 +25,15 @@ db_run($link, "CREATE TABLE IF NOT EXISTS schema_migrations (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
 $applied = array_column(db_all($link, "SELECT version, applied_at FROM schema_migrations"), "applied_at", "version");
-$files = glob(dirname(__DIR__) . "/migrations/[0-9][0-9][0-9]_*.sql");
+$dir = dirname(__DIR__) . "/migrations";
+$files = glob($dir . "/[0-9][0-9][0-9]_*.sql") ?: array();
 sort($files);
+if(!$files){
+	// Without this check a missing folder looked like "all migrations are applied"
+	fwrite(STDERR, "No migration files found in " . $dir . PHP_EOL
+		. "Upload the migrations/ folder from the repository (001_admin_accounts.sql, 002_..., 003_...) and run again." . PHP_EOL);
+	exit(1);
+}
 
 $pending = array();
 foreach($files as $file){
