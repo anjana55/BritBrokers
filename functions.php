@@ -24,6 +24,12 @@ function setConnection($charset = null){
 	$link = @mysqli_connect(db_host(), db_user(), db_password(), db_name());
 	if(!$link){
 		error_log("BritBrokers DB connection failed: " . mysqli_connect_error());
+		if(PHP_SAPI === "cli"){
+			// Command-line scripts (migrations, admin users): show the real reason
+			fwrite(STDERR, "Cannot connect to the database: " . mysqli_connect_error() . PHP_EOL
+				. "Check DB_HOST, DB_NAME, DB_USER and DB_PASSWORD in the settings file (see .env.example)." . PHP_EOL);
+			exit(1);
+		}
 		http_response_code(503);
 		die("The site is temporarily unavailable. Please try again shortly.");
 	}

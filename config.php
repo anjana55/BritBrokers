@@ -28,12 +28,49 @@ function bb_config_values(){
 
 	foreach($candidates as $file){
 		if(is_readable($file)){
-			$parsed = parse_ini_file($file, false, INI_SCANNER_RAW);
-			if(is_array($parsed)){
-				$values = $parsed;
-			}
+			$values = bb_parse_env_file($file);
 			break;
 		}
+	}
+	return $values;
+}
+
+/**
+ * Read a settings file: one KEY=value per line.
+ *   - Lines starting with # or ; are comments; blank lines are ignored; "export KEY=value" is accepted.
+ *   - Values may be in double quotes, single quotes, or none. Inside double quotes, \" is a quote and
+ *     \\ a backslash. Without quotes the value is taken as written (a ; or # in a password is kept).
+ * Problems are written to the PHP error log with their line number (never the value), and the rest of
+ * the file is still used.
+ */
+function bb_parse_env_file($file){
+	$values = array();
+	$raw = (string)file_get_contents($file);
+	if(substr($raw, 0, 2) === "\xFF\xFE" || substr($raw, 0, 2) === "\xFE\xFF" || strpos($raw, "\0") !== false){
+		error_log("BritBrokers config: " . $file . " is saved as UTF-16 (\"Unicode\"); save it as UTF-8 / plain text.");
+		return $values;
+	}
+	$raw = preg_replace('/^\xEF\xBB\xBF/', '', $raw); // UTF-8 byte-order mark
+	foreach(preg_split('/\r\n|\r|\n/', $raw) as $i => $line){
+		$line = trim($line);
+		if($line === "" || $line[0] === "#" || $line[0] === ";"){
+			continue;
+		}
+		if(!preg_match('/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/', $line, $m)){
+			error_log("BritBrokers config: " . $file . " line " . ($i + 1) . " is not a KEY=value setting; ignored.");
+			continue;
+		}
+		$value = $m[2];
+		$first = $value !== "" ? $value[0] : "";
+		if(($first === '"' || $first === "'") && strlen($value) >= 2 && substr($value, -1) === $first){
+			$value = substr($value, 1, -1);
+			if($first === '"'){
+				$value = strtr($value, array('\\"' => '"', '\\\\' => '\\'));
+			}
+		} elseif($first === '"' || $first === "'"){
+			error_log("BritBrokers config: " . $file . " line " . ($i + 1) . " (" . $m[1] . ") has no closing quote.");
+		}
+		$values[$m[1]] = $value;
 	}
 	return $values;
 }
