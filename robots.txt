@@ -1,7 +1,6 @@
 # robots.txt for British Brokers.
-# Search engines only read this file at the root of the domain (https://www.britbrokers.com/robots.txt).
-# If the site runs in a subfolder such as /live/, copy these lines into the robots.txt at the domain root
-# and put the folder in front of each path (e.g. "Disallow: /live/control_panel.php").
+# Search engines read this file at the root of the domain (https://www.britbrokers.com/robots.txt),
+# which is where the site runs. If the site ever moves into a subfolder, put the folder in front of each path.
 
 User-agent: *
 Disallow: /control_panel.php
@@ -11,4 +10,4 @@ Disallow: /ajax_functions.php
 Disallow: /mailman.php
 Disallow: /captcha_image.php
 
-Sitemap: https://www.britbrokers.com/live/sitemap.xml
+Sitemap: https://www.britbrokers.com/sitemap.xml

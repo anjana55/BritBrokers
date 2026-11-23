@@ -111,5 +111,5 @@ function db_password() {
 
 /** Public base URL of the site, without a trailing slash, e.g. https://www.britbrokers.com/live */
 function site_url(){
-	return rtrim(cfg("SITE_URL", "https://www.britbrokers.com/live"), "/");
+	return rtrim(cfg("SITE_URL", "https://www.britbrokers.com"), "/");
 }
