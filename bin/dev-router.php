@@ -5,6 +5,9 @@
  * Maps clean property links and blocks the folders .htaccess blocks on the real server.
  */
 $path = (string)parse_url($_SERVER['REQUEST_URI'] ?? "/", PHP_URL_PATH);
+// This router does what .htaccess does on the real server, including the clean-URL rewrite
+$_SERVER['BB_PRETTY_URLS'] = "1";
+putenv("BB_PRETTY_URLS=1");
 $root = dirname(__DIR__);
 
 if(preg_match('#^/(inc|templates|bin|lib|migrations|tests)(/|$)#', $path) || preg_match('#/\.|\.(sql|env|ini|md|log)$#', $path) || $path === "/bootstrap.php"){

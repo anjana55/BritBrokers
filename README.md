@@ -14,6 +14,16 @@ No passwords or keys are stored in the code. Settings are read from, in order:
 
 Copy `.env.example` and fill it in.
 
+## After every upload
+
+```
+php bin/check-install.php
+```
+
+It checks PHP, the settings file, the database and migrations, admin accounts, writable upload folders,
+the protective `.htaccess` / `.user.ini` files (upload tools often skip files whose names start with a dot),
+and lists old files from earlier versions that should be deleted.
+
 ## Database migrations
 
 Changes to the database structure live in `migrations/` as numbered SQL files. Apply them with:
@@ -77,6 +87,8 @@ page_head(array("title" => "Page title", "description" => "For search engines"))
 
 Property links come from `property_url($property)`: `property-123-3-bedroom-house-colombo-7`, mapped to
 `single-property.php?pid=123` by `.htaccess`. Old `single-property.php?pid=` links redirect permanently.
+Clean links are only used when `.htaccess` is active (it sets `BB_PRETTY_URLS`); without it the site
+falls back to `single-property.php?pid=` links rather than 404s.
 
 ## Folders
 
