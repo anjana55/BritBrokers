@@ -34,7 +34,7 @@
 <script>
 $(document).ready(function() {
 	$("#btn_cancel_conf").click(function(){
-		location.reload();
+		cpDone();
 	});	
 	
 	$("span[name='btn_edit']").click(function(){

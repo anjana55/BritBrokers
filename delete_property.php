@@ -46,7 +46,7 @@ $(document).ready(function() {
     });
 	
 	$("#btn_cancel_conf").click(function(){
-		location.reload();
+		cpDone();
 	});	
 	
 	$("#btn_delete_conf").click(function(){
@@ -66,7 +66,7 @@ $(document).ready(function() {
 						$("#error_msg").addClass("alert alert-success");
 						//$res = json_decode(res[1]);
 						$("#error_msg").html(res[1]);
-						location.reload();
+						cpDone();
 					} else {
 						$("#error_msg").removeClass("alert-success");
 						$("#error_msg").addClass("alert alert-danger");

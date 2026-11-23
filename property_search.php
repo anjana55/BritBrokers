@@ -20,7 +20,7 @@
 $(document).ready(function() {
 	var return_url = <?php echo json_encode($return_url); ?>;
 	$("#btn_cancel_conf").click(function(){
-		location.reload();
+		cpDone();
 	});
 
 	$("#btn_search").click(function(){

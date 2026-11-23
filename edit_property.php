@@ -102,7 +102,7 @@ $(document).ready(function() {
 						$("#error_msg").removeClass("alert-danger");
 						$("#error_msg").addClass("alert alert-success");
 						$("#error_msg").html(res[1]);
-						location.reload();
+						cpDone();
 					} else {
 						$("#error_msg").removeClass("alert-success");
 						$("#error_msg").addClass("alert alert-danger");
@@ -124,7 +124,7 @@ $(document).ready(function() {
 
 	
 	$("#btn_cancel_conf").click(function(){
-		location.reload();
+		cpDone();
 	});
 
 	

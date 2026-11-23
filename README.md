@@ -22,7 +22,28 @@ php bin/check-install.php
 
 It checks PHP, the settings file, the database and migrations, admin accounts, writable upload folders,
 the protective `.htaccess` / `.user.ini` files (upload tools often skip files whose names start with a dot),
-and lists old files from earlier versions that should be deleted.
+and lists old files from earlier versions that should be deleted. Add `--deep` to also count the uploads folder
+and check that the newest photos exist on disk.
+
+The same checks, with more detail, are on the control panel's **Server health** tab.
+
+## Control panel
+
+`control_panel.php` (admin login required) has five tabs; the address bar keeps the open tab (`#add`, `#health` ...),
+so reloading or pressing Back stays in place.
+
+- **Dashboard** (`stats.php`): listing totals, listings added per month, listings by type and district,
+  the newest listings with View/Edit buttons, and listings that need attention (no photos, available for
+  over 6 months, marked sold or let).
+- **Add / Edit / Delete property**: the existing property screens.
+- **Server health** (`server_health.php`): PHP version and its security-support date, disk space, memory and
+  upload limits, OPcache, database connection, size and migrations, protective files, writable upload
+  folders, missing photos, old files, HTTPS, error display, settings-file location, admin accounts,
+  failed logins, clean links, exchange-rate refresh, email and analytics settings, and the newest lines of
+  the PHP error log. Each problem says what to do. The tab's badge shows the number of problems
+  (red: to fix, amber: to look at).
+
+Both the tab and `bin/check-install.php` use `inc/health.php`; add new checks there.
 
 ## Database migrations
 
@@ -69,7 +90,7 @@ Only pages and endpoints live in the web root. Every one starts with `require_on
 | Path | What it is |
 |---|---|
 | `*.php` (root) | Pages (`index.php`, `list_property.php`, `single-property.php`, ...), admin screens and endpoints (`ajax_functions.php`, `upload.php`, `mailman.php`, ...) |
-| `inc/` | Library code: `config.php`, `auth.php`, `functions.php` (data access), `layout.php` (page layout, property links), `set_post_vars.php` (search input), image and captcha classes |
+| `inc/` | Library code: `config.php`, `auth.php`, `functions.php` (data access), `layout.php` (page layout, property links), `health.php` (server health checks), `set_post_vars.php` (search input), image and captcha classes |
 | `templates/` | Page parts: header (CSS/JS), navigation, footer, sub-footer, search box, property listing, sliders, latest news |
 
 A page looks like this:
@@ -145,7 +166,8 @@ Exchange rates (used by the price converter) are refreshed by:
 php /path/to/site/bin/update-exchange-rates.php
 ```
 
-Run it from cron once a day.
+Run it from cron once a day (cPanel > Cron Jobs). It records when it last ran (migration 004), and the
+Server health tab warns when the rates have not been refreshed for two days.
 
 ## Development and tests
 

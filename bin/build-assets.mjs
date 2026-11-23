@@ -47,6 +47,7 @@ const bundles = {
 		"css/bootstrap-select.css",
 		"css/dropzone.css",
 		"css/jquery-ui.css",
+		"css/control-panel.css",
 	],
 	"js/site.min.js": [
 		"js/vendor/jquery-3.7.1.min.js",
@@ -64,6 +65,7 @@ const bundles = {
 		"js/bootstrap-select.js",
 		"js/dropzone.js",
 		"js/jquery.confirm.js",
+		"js/control-panel.js",
 	],
 	// The property page's "send to a friend" form needs only the validator
 	"js/validator.min.js": [
