@@ -7,15 +7,49 @@ Options -Indexes
 	Require all denied
 </FilesMatch>
 
-# Library files and includes are not pages; block direct requests to them
-<FilesMatch "^(config|auth|functions|set_post_vars|image_processing|captcha\.class|GIFEncoder\.class)\.php$">
+# Library code (inc/), page parts (templates/), bin/, lib/, migrations/ and tests/ each have their own
+# .htaccess that blocks them. Only the pages in this folder are served.
+<Files "bootstrap.php">
 	Require all denied
-</FilesMatch>
+</Files>
 
 <IfModule mod_headers.c>
 	Header always set X-Content-Type-Options "nosniff"
 	Header always set X-Frame-Options "SAMEORIGIN"
 	Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# Compress text responses (pages, CSS, JS, fonts)
+<IfModule mod_deflate.c>
+	AddOutputFilterByType DEFLATE text/html text/plain text/css text/xml application/javascript text/javascript application/json application/xml image/svg+xml application/vnd.ms-fontobject font/ttf application/x-font-ttf
+</IfModule>
+
+# Let browsers keep static files. The CSS/JS bundles carry ?v=<timestamp>, so a new build is picked up at once.
+<IfModule mod_expires.c>
+	ExpiresActive On
+	ExpiresByType text/css                 "access plus 30 days"
+	ExpiresByType application/javascript   "access plus 30 days"
+	ExpiresByType text/javascript          "access plus 30 days"
+	ExpiresByType image/jpeg               "access plus 30 days"
+	ExpiresByType image/png                "access plus 30 days"
+	ExpiresByType image/gif                "access plus 30 days"
+	ExpiresByType image/webp               "access plus 30 days"
+	ExpiresByType image/svg+xml            "access plus 30 days"
+	ExpiresByType image/x-icon             "access plus 30 days"
+	ExpiresByType font/woff                "access plus 1 year"
+	ExpiresByType font/woff2               "access plus 1 year"
+	ExpiresByType application/font-woff    "access plus 1 year"
+	ExpiresByType application/vnd.ms-fontobject "access plus 1 year"
+	ExpiresByType font/ttf                 "access plus 1 year"
+</IfModule>
+
+# Clean property links: property-123-3-bedroom-house-colombo-7 -> single-property.php?pid=123
+# (the text after the number is only for people and search engines; the page redirects to the current one)
+<IfModule mod_rewrite.c>
+	RewriteEngine On
+	RewriteRule ^property-([0-9]+)(-[a-z0-9-]*)?$ single-property.php?pid=$1 [L,QSA]
+	# Sitemap for search engines
+	RewriteRule ^sitemap\.xml$ sitemap.php [L]
 </IfModule>
 
 # Once HTTPS works on the domain, uncomment to force it:

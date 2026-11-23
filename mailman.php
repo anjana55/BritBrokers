@@ -14,7 +14,7 @@
  *
  * Replies: "success|<message>" or "error|<message>".
  */
-require_once __DIR__ . "/functions.php";
+require_once __DIR__ . "/bootstrap.php";
 require_once __DIR__ . "/lib/PHPMailer/Exception.php";
 require_once __DIR__ . "/lib/PHPMailer/PHPMailer.php";
 require_once __DIR__ . "/lib/PHPMailer/SMTP.php";

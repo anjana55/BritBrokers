@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . "/functions.php";
+require_once __DIR__ . "/bootstrap.php";
 start_secure_session();
 
 // Only a POST with this session's token can log someone out (a link on another site cannot).

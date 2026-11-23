@@ -1,13 +1,10 @@
-a<!DOCTYPE html>
-<html lang="en">
-<head>
+<?php require_once __DIR__ . "/bootstrap.php"; ?>
 <?php
-include "header.php";
+page_head(array(
+	"title" => "Renting Colombo Properties to Expat Tenants. Best Rentals in the Shortest Time",
+	"description" => "With extensive brokerage experience and a strong reputation with both landlords and tenants alike, British Brokers is your ideal real estate partner.  Striving to find tenants quickly and efficiently, we are here to make the process of renting out your property as smooth as possible.",
+));
 ?>
-<title>Renting Colombo Properties to Expat Tenants. Best Rentals in the Shortest Time</title>
-<meta name="description" content="With extensive brokerage experience and a strong reputation with both landlords and tenants alike, British Brokers is your ideal real estate partner.  Striving to find tenants quickly and efficiently, we are here to make the process of renting out your property as smooth as possible.">
-<meta name="keywords" content="With extensive brokerage experience and a strong reputation with both landlords and tenants alike, British Brokers is your ideal real estate partner.  Striving to find tenants quickly and efficiently, we are here to make the process of renting out your property as smooth as possible.">
-</head>
 <script src="js/jssor.slider.mini.js"></script>
 <script src="js/jquery.flexslider.js"></script>
 <script>
@@ -46,12 +43,11 @@ include "header.php";
 		$('.flexslider').flexslider();		
 	});
 </script>
-<body id="home">
+<?php page_body("home"); ?>
 <?php
-include "navigation.php";
-include_once "functions.php";
+require_once __DIR__ . "/bootstrap.php";
 $link = setConnection();
-include "set_post_vars.php";
+include SITE_ROOT . "/inc/set_post_vars.php";
 ?>
 
     <!-- content begin -->
@@ -75,7 +71,7 @@ include "set_post_vars.php";
 		<section id="property-search">
 			<div class="container-fluid">
 			<?php
-				include("search_box.php");
+				include SITE_ROOT . "/templates/search_box.php";
 			?>
 			</div>
 		</section>
@@ -166,9 +162,6 @@ include "set_post_vars.php";
     <!-- content close -->
 
 <?php
-include "sub_footer.php";
-include "footer.php";
+page_end(true, array("pid" => $pid ?? ""));
 @mysqli_close($link);
 ?>
-</body>
-</html>

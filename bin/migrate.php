@@ -16,7 +16,7 @@ if(PHP_SAPI !== "cli"){
 	exit();
 }
 
-require __DIR__ . "/../functions.php";
+require dirname(__DIR__) . "/bootstrap.php";
 $link = setConnection("utf8mb4");
 
 db_run($link, "CREATE TABLE IF NOT EXISTS schema_migrations (

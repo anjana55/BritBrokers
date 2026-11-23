@@ -14,7 +14,7 @@ if(PHP_SAPI !== "cli"){
 	exit();
 }
 
-require __DIR__ . "/../functions.php";
+require dirname(__DIR__) . "/bootstrap.php";
 $link = setConnection();
 
 function fail($msg){

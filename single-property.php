@@ -1,5 +1,5 @@
 <?php
-include_once __DIR__ . "/functions.php";
+require_once __DIR__ . "/bootstrap.php";
 
 // Property ID must be a whole number; anything else goes back to the home page.
 $pid = (isset($_REQUEST['pid']) && is_string($_REQUEST['pid']) && preg_match('/^\d{1,10}$/', $_REQUEST['pid'])) ? $_REQUEST['pid'] : "";
@@ -7,12 +7,6 @@ if($pid === ""){
 	header("Location: index.php"); /* Redirect browser */
 	exit();
 }
-$bt  = (isset($_REQUEST['bt']) && is_string($_REQUEST['bt']) && preg_match('/^[A-Za-z]{1,3}$/', $_REQUEST['bt'])) ? strtoupper($_REQUEST['bt']) : "";
-$did = (isset($_REQUEST['did']) && is_string($_REQUEST['did']) && preg_match('/^\d{1,10}$/', $_REQUEST['did'])) ? $_REQUEST['did'] : "";
-
-// New captcha answer for the "send to a friend" form (kept in the session, before any output)
-captcha_new_code();
-$share_url = site_url() . "/single-property.php?pid=" . $pid;
 
 $link = setConnection();
 $properties = getPropertyByID($link, $pid);
@@ -23,13 +17,24 @@ if(!$properties){
 	exit();
 }
 $property = $properties[0];
-?>
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<?php
-include "set_post_vars.php";
+// One address per property: old single-property.php?pid= links and out-of-date slugs get a permanent redirect
+// to the current clean URL (other query values, such as a search, are kept).
+if(pretty_urls() && ($_SERVER['REQUEST_METHOD'] ?? "GET") === "GET"){
+	$requested = basename((string)parse_url($_SERVER['REQUEST_URI'] ?? "", PHP_URL_PATH));
+	$keep = array_diff_key($_GET, array_flip(array("pid", "bt", "did")));
+	$canonical = property_url($property);
+	if($requested !== $canonical){
+		header("Location: " . property_url($property, $keep), true, 301);
+		exit();
+	}
+}
+
+// New captcha answer for the "send to a friend" form (kept in the session, before any output)
+captcha_new_code();
+$share_url = property_url($property, array(), true);
+
+include SITE_ROOT . "/inc/set_post_vars.php";
 
 $total_records = getProperties($link,$bt,$pt, $features, $min_bdrm, $max_bdrm, $min_btrm, $max_btrm, $min_price, $max_price, $keywords, $district, $city, $featured, $sort_by, $sort_order,null,null,true);
 
@@ -37,26 +42,32 @@ $max_records_per_page=8;
 $max_pages_display=5;
 $pagination=true;
 $start_from = ($current_page-1) * $max_records_per_page;
-//$properties = getProperties($link,'','','','','','','','','','','','','',8);
 $properties = getProperties($link,$bt,$pt, $features, $min_bdrm, $max_bdrm, $min_btrm, $max_btrm, $min_price, $max_price, $keywords, $district, $city,$featured, $sort_by, $sort_order,$start_from,$max_records_per_page );
 
 $page_name=basename($_SERVER['SCRIPT_NAME']);
-include "header.php";
 
 $title = $property['property_type_name'] . " for " . $property['business_type'] . " at " . $property['city_name'] . ", " . $property['district_name'];
-?>
-<title>British Brokers - <?php echo $title; ?></title>
-<meta name="description" content="<?php echo "British Brokers Properties: " . $title; ?>">
-<meta name="keywords" content="<?php echo "British Brokers Properties: " . $title; ?>">
 
-<!-- use jssor.slider.min.js instead for release -->
-<!-- jssor.slider.min.js = (jssor.js + jssor.slider.js) -->
+// For search results and link previews: "3 Bedroom Apartment for Rent in Colombo 7", the start of the
+// description with the price, and the main photo.
+$seo_title = ((int)$property['bedrooms'] > 0 && strpos($property['property_type'], "LAN") !== 0 ? (int)$property['bedrooms'] . " Bedroom " : "")
+	. $property['property_type_name'] . " for " . $property['business_type'] . " in " . $property['city_name'];
+$price_text = ($property['currency'] === "LKR" ? "Rs. " : $property['currency'] . " ") . number_format((float)$property['price'])
+	. ($property['bt_id'] === "R" ? " per month" : "");
+$seo_description = $price_text . ". " . truncate(trim(preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($property['description']), ENT_QUOTES))), 140);
+$main_photo = getPropertyImages($link, $pid, 1, "PROMN");
+page_head(array(
+	"title" => $seo_title . " | British Brokers",
+	"description" => $seo_description,
+	"canonical" => property_url($property, array(), true),
+	"image" => $main_photo ? $main_photo[0]['img_url'] : "img/bb-main-1.jpg",
+	"validator" => true, // the "send to a friend" form
+));
+?>
+
 <script type="text/javascript" src="js/jssor.js"></script>
 <script type="text/javascript" src="js/jssor.slider.js"></script>
-<!-- use jssor.slider.player.ytiframe.min.js for release -->
 <script type="text/javascript" src="js/jssor.player.ytiframe.js"></script>
-<script src="js/jquery-ui.js"></script>
-<link rel="stylesheet" href="css/jquery-ui.css">
 <script src="js/jquery.pano.js"></script>
 
 <style>
@@ -327,11 +338,9 @@ $title = $property['property_type_name'] . " for " . $property['business_type'] 
 		});
 	});
 </script>
-</head>
-<body id="home">
+<?php page_body("home"); ?>
 <?php
-include "navigation.php";
-include "slider_full.php";
+include SITE_ROOT . "/templates/slider_full.php";
 ?>
 
     <!-- subheader begin -->
@@ -376,7 +385,7 @@ include "slider_full.php";
 								<div class="lt_tab_content">
 									<div id="tab1" class="lt_content">
 										<?php
-										include "slider.php";
+										include SITE_ROOT . "/templates/slider.php";
 										$tab=1;
 										?>
 									</div>
@@ -525,9 +534,7 @@ include "slider_full.php";
 								<div class="container">
 								    <!--
 									<div class="col-md-3 col-lg-3">
-									<?php
-									?>
-									</div>
+																		</div>
 									-->
 									<div class="col-md-12 col-lg-12">
 									<?php
@@ -654,7 +661,7 @@ include "slider_full.php";
 				<section id="property-search">
 					<div class="container">
 					<?php
-						include("search_box.php");
+						include SITE_ROOT . "/templates/search_box.php";
 					?>
 					</div>
 				</section>
@@ -668,14 +675,14 @@ include "slider_full.php";
 						$pagination=false;
 						$properties = getProperties($link,$bt,'','','','','','','','','','','','','featured','DESC',0,8);
 						//$properties = getProperties($link,$bt,$pt, $features, $min_bdrm, $max_bdrm, $min_btrm, $max_btrm, $min_price, $max_price, $keywords, $district, $city, $featured, $sort_by, $sort_order, start_from, max_rec, count_only );
-						include "print_properties.php";
+						include SITE_ROOT . "/templates/print_properties.php";
 						?>
 					</div>
                 </div>
                 <div class="col-sm-3 col-md-3">
                     <div class="widget latest_news">
 						<?php
-						include "latest_news.php";
+						include SITE_ROOT . "/templates/latest_news.php";
 						?>
                     </div>
                 </div>
@@ -684,9 +691,6 @@ include "slider_full.php";
     </div>
     <!-- content close -->	
 <?php
-include "sub_footer.php";
-include "footer.php";
+page_end(true, array("pid" => $pid ?? ""));
 @mysqli_close($link);
 ?>
-</body>
-</html>

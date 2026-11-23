@@ -8,8 +8,8 @@
  *  - the image is always re-encoded and saved as .jpg under a generated name,
  *    so nothing the visitor sends ends up in the file name or survives as executable content
  */
-require_once __DIR__ . "/functions.php";
-require_once __DIR__ . "/image_processing.php";
+require_once __DIR__ . "/bootstrap.php";
+require_once SITE_ROOT . "/inc/image_processing.php";
 
 require_admin_ajax();
 require_csrf();

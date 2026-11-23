@@ -1,4 +1,4 @@
-<?php require_once __DIR__ . "/functions.php"; require_admin_ajax(); // admin only ?>
+<?php require_once __DIR__ . "/bootstrap.php"; require_admin_ajax(); // admin only ?>
 <?php
 	if(isset($_REQUEST['ru']) && $_REQUEST['ru']!=""){
 		// Only the admin screens that use this search may be returned to
@@ -6,7 +6,7 @@
 	} else {
 		$return_url = "";
 	}
-	include_once("functions.php");
+	require_once __DIR__ . "/bootstrap.php";
 	$link = setConnection();
 ?>
 <style type="text/css">

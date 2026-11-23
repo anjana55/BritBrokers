@@ -11,7 +11,7 @@ if(PHP_SAPI !== "cli"){
 	exit();
 }
 
-require dirname(__DIR__) . "/functions.php";
+require dirname(__DIR__) . "/bootstrap.php";
 $link = setConnection();
 
 if(stripos(db_name(), "test") === false && !in_array("--force", $argv, true)){
