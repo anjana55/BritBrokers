@@ -157,7 +157,7 @@ function property_slug($property){
 }
 
 /**
- * Link to a property page. With PRETTY_URLS on (the default) this is
+ * Link to a property page. When clean URLs are active (see pretty_urls()) this is
  *   property-123-3-bedroom-house-colombo-7
  * which .htaccess maps to single-property.php?pid=123. It sits in the same folder as the other pages,
  * so relative links to css/, js/ and img/ keep working. $extra adds query values, e.g. array("bt" => "R").
@@ -176,7 +176,21 @@ function property_url($property, array $extra = array(), $absolute = false){
 	return ($absolute ? site_url() . "/" : "") . $url . $query;
 }
 
-/** Clean property links need mod_rewrite (Apache/LiteSpeed). Set PRETTY_URLS="0" if the host has none. */
+/**
+ * Clean property links need the rewrite rules in .htaccess. By default they are used only when the
+ * server confirms those rules are active (.htaccess sets BB_PRETTY_URLS), so a missing or old .htaccess
+ * gives single-property.php?pid= links instead of broken ones.
+ * PRETTY_URLS="0" turns them off; PRETTY_URLS="1" forces them on.
+ */
 function pretty_urls(){
-	return cfg("PRETTY_URLS", "1") !== "0";
+	$setting = cfg("PRETTY_URLS", "auto");
+	if($setting === "0" || $setting === "1"){
+		return $setting === "1";
+	}
+	foreach(array("BB_PRETTY_URLS", "REDIRECT_BB_PRETTY_URLS", "REDIRECT_REDIRECT_BB_PRETTY_URLS") as $key){
+		if(!empty($_SERVER[$key]) || getenv($key)){
+			return true;
+		}
+	}
+	return false;
 }

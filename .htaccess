@@ -47,6 +47,9 @@ Options -Indexes
 # (the text after the number is only for people and search engines; the page redirects to the current one)
 <IfModule mod_rewrite.c>
 	RewriteEngine On
+	# Tells the PHP code these rules are active, so it can link to clean URLs. Without this file
+	# (e.g. not uploaded) the site falls back to single-property.php?pid= links instead of 404s.
+	RewriteRule ^ - [E=BB_PRETTY_URLS:1]
 	RewriteRule ^property-([0-9]+)(-[a-z0-9-]*)?$ single-property.php?pid=$1 [L,QSA]
 	# Sitemap for search engines
 	RewriteRule ^sitemap\.xml$ sitemap.php [L]
