@@ -1,134 +1,48 @@
 <?php
+/*
+ * Admin control panel. Each tab's screen is a page fragment loaded into #work_area by
+ * js/control-panel.js; the address bar's #hash keeps the open tab, so reloading or the Back button
+ * stays where you were.
+ */
 require_once __DIR__ . "/bootstrap.php";
 require_admin();
 page_head(array(
 	"title" => "Control panel - British Brokers",
 	"robots" => "noindex,nofollow",
 	"csrf" => true, // adds the CSRF token to every AJAX request made from this page and its screens
-	"admin" => true, // admin scripts and styles (uploads, form validation, sortable photos)
+	"admin" => true, // admin scripts and styles (uploads, form validation, sortable photos, js/control-panel.js)
 ));
+page_body("home");
+$tabs = array(
+	"dashboard" => array("icon-dashboard", "Dashboard"),
+	"add"       => array("icon-plus", "Add property"),
+	"edit"      => array("icon-edit", "Edit property"),
+	"delete"    => array("icon-trash", "Delete property"),
+	"health"    => array("icon-heart", "Server health"),
+);
 ?>
-<script>
-$(document).ready(function() {
-	$("#btn_add").click(function(){
-		$.ajax({
-		  url: "add_new_property.php",
-		  data: { name: "John", time: "2pm" },
-		  success: function(data){
-			$("#work_area").html(data);
-		  }
-		});			
-	});
-
-	$("#btn_delete").click(function(){
-		$.ajax({
-		  url: "property_search.php",
-		  data: { action: "delete", ru: "delete_property.php"},
-		  success: function(data){
-			$("#work_area").html(data);
-		  }
-		});			
-	});
-
-	$("#btn_edit").click(function(){
-		$.ajax({
-		  url: "property_search.php",
-		  data: {  action: "edit", ru: "edit_property_list.php"},
-		  success: function(data){
-			$("#work_area").html(data);
-		  }
-		});			
-	});
-	
-	$("#btn_logoff").click(function(){
-		$.ajax({
-		  type: "POST",
-		  url: "logoff.php",
-		  complete: function(){
-			$(location).attr('href', "index.php");
-		  }
-		});			
-	});
-		
-	$("#work_area").on("change", "[id^='district']", function() {
-		//var did = $(this).children(":selected").attr("id");
-		var did = $(this).children(":selected").val();
-		//alert(did);
-		$("#loadingDiv").modal("show");
-		$.ajax({
-		  url: "ajax_functions.php",
-		  data: { tsk: "dbfc", value: did },
-		  success: function(response){
-			$("#city")
-			.empty()
-			//.append('<option>Please select a value</option>')
-			;
-			//$.each(response, function (key, value) {
-				$("#city").append(response);
-			//});
-			$("#city").prop('disabled', false);
-			//$("#work_area").html(response);
-			$("#loadingDiv").modal("hide");
-		  },
-		  error: function(){
-			$("#loadingDiv").modal("hide");
-		  }
-		});
-	});
-	
-	$("#work_area").on("change", "[id^='property_id']", function() {
-		var len = $(this).val().length;
-
-		if(len>0){
-			$("#business_type").attr("disabled", true);
-			$("#property_type").attr("disabled", true);
-			$("#bedrooms").attr("disabled", true);
-			$("#bathrooms").attr("disabled", true);
-			$("#district").attr("disabled", true);
-			$("#city").attr("disabled", true);
-			
-			$("#error_msg").removeClass("alert-success");
-			$("#error_msg").addClass("alert alert-danger");
-			$("#error_msg").html("Switched to Property ID search. Rest of the fields are dissabled. Clear Property ID to re-enable.");
-			$("#error_msg").show("slow");
-		} else {
-			$("#business_type").removeAttr("disabled");
-			$("#property_type").removeAttr("disabled");
-			$("#bedrooms").removeAttr("disabled");
-			$("#bathrooms").removeAttr("disabled");
-			$("#district").removeAttr("disabled");
-			$("#city").removeAttr("disabled");
-
-			$("#error_msg").hide();
-		}
-	});		
-});
-</script>
-<?php page_body("home"); ?>
-<section>
-	<div class="row btn-toolbar" style="margin:20px;">
-		<span id="btn_add" class="btn btn-success fileinput-button" >
-			<i class="icon-user" >&nbsp;</i>
-			<span class="button" >Add New Property</span>
-		</span>
-		<span id="btn_edit" class="btn btn-warning fileinput-button" >
-			<i class="icon-edit" ></i>
-			<span class="button" >Edit Property</span>
-		</span>
-		<span id="btn_delete" class="btn btn-danger fileinput-button" >
-			<i class="icon-trash" ></i>
-			<span class="button" >Delete Property</span>
-		</span>
-		<span id="btn_logoff" class="btn btn-info fileinput-button" >
-			<i class="icon-off" ></i>
-			<span class="button" >Logoff</span>
-		</span>		
+<div id="cp" class="cp container-fluid">
+	<div class="cp-head">
+		<div>
+			<h1>Control panel</h1>
+			<div class="cp-muted">Signed in as <strong><?php echo e(admin_name()); ?></strong></div>
+		</div>
+		<div class="cp-head-actions">
+			<a class="btn btn-default btn-sm" href="index.php" target="_blank" rel="noopener"><i class="icon-external-link" aria-hidden="true"></i> View site</a>
+			<button type="button" class="btn btn-default btn-sm" id="btn_logoff"><i class="icon-off" aria-hidden="true"></i> Log out</button>
+		</div>
 	</div>
-</section>
 
-<section id="work_area">
-<?php
-include __DIR__ . "/stats.php";
-?>
-</section>
+	<ul class="nav nav-tabs cp-nav">
+<?php foreach($tabs as $id => $tab): ?>
+		<li data-cp-tab="<?php echo $id; ?>"<?php echo $id === "dashboard" ? ' class="active"' : ""; ?>>
+			<a href="#<?php echo $id; ?>"><i class="<?php echo $tab[0]; ?>" aria-hidden="true"></i> <?php echo $tab[1]; ?><?php if($id === "health"): ?> <span class="cp-badge" id="cp_health_badge" hidden></span><?php endif; ?></a>
+		</li>
+<?php endforeach; ?>
+	</ul>
+
+	<section id="work_area" aria-live="polite">
+<?php include __DIR__ . "/stats.php"; ?>
+	</section>
+</div>
 <?php page_end(false); ?>

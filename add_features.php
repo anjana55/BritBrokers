@@ -104,7 +104,7 @@ $(document).ready(function() {
 	
 		
 	$("#btn_cancel_conf").click(function(){
-		location.reload();
+		cpDone();
 	});
 	
 	$("#btn_save").click(function(){

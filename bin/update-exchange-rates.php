@@ -31,7 +31,11 @@ if(!is_numeric($lkr) || !is_numeric($gbp)){
 }
 
 $link = setConnection();
-$status = db_status($link, "UPDATE rates SET LKR = ?, GBP = ?", array((float)$lkr, (float)$gbp));
+$status = db_status($link, "UPDATE rates SET LKR = ?, GBP = ?, updated_at = NOW()", array((float)$lkr, (float)$gbp));
+if(!is_success($status)){
+	// Before migration 004 the table has no updated_at column
+	$status = db_status($link, "UPDATE rates SET LKR = ?, GBP = ?", array((float)$lkr, (float)$gbp));
+}
 mysqli_close($link);
 
 echo "LKR=" . $lkr . " GBP=" . $gbp . " (" . $status . ")" . PHP_EOL;
