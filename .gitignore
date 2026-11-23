@@ -12,6 +12,8 @@ uploads/thumbs/*
 # Database dumps contain personal data (blog users, newsletter subscribers)
 *.sql
 *.sql.gz
+# ...but the database migrations are code and must be committed
+!migrations/*.sql
 
 # Logs and OS files
 error_log
