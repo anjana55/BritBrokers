@@ -109,7 +109,17 @@
 		}
 
 		$(window).on("hashchange", function () {
-			openTab(tabFromHash());
+			var tab = tabFromHash();
+			// Only tab names switch tabs; any other #fragment is left alone
+			if (TABS.hasOwnProperty(tab)) {
+				openTab(tab);
+			}
+		});
+
+		// The screens use href="#" links as buttons (currency choices, photo Delete / Make featured ...).
+		// Following them would change the address to "#", which means the dashboard, and lose the form.
+		$work.on("click", "a[href='#']", function (ev) {
+			ev.preventDefault();
 		});
 
 		// The dashboard is already on the page; open another tab if the address asks for one
